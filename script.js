@@ -1,5 +1,4 @@
 const els = {
-  apiKey: document.getElementById("apiKey"),
   videoUrl: document.getElementById("videoUrl"),
   maxComments: document.getElementById("maxComments"),
   analyzeBtn: document.getElementById("analyzeBtn"),
@@ -42,6 +41,7 @@ function extractVideoId(url) {
 
   for (const pattern of patterns) {
     const match = text.match(pattern);
+
     if (match && match[1]) {
       return match[1];
     }
@@ -162,6 +162,7 @@ function classifyComment(text) {
 
 function scoreImportance(comment) {
   const text = normalizeText(comment.text).toLowerCase();
+
   let score = 0;
 
   if (comment.likeCount >= 10) score += 3;
@@ -186,74 +187,37 @@ function scoreImportance(comment) {
   ];
 
   strongSignals.forEach((signal) => {
-    if (text.includes(signal)) score += 1;
+    if (text.includes(signal)) {
+      score += 1;
+    }
   });
 
   if (score >= 5) return "高";
   if (score >= 3) return "中";
+
   return "低";
 }
 
 function importanceClass(value) {
   if (value === "高") return "high";
   if (value === "中") return "mid";
+
   return "low";
 }
 
-async function fetchComments(apiKey, videoId, maxComments) {
-  const comments = [];
-  let pageToken = "";
+async function fetchComments(videoId, maxComments) {
 
-  while (comments.length < maxComments) {
-    const url = new URL("https://www.googleapis.com/youtube/v3/commentThreads");
-    url.searchParams.set("part", "snippet,replies");
-    url.searchParams.set("videoId", videoId);
-    url.searchParams.set("maxResults", "100");
-    url.searchParams.set("order", "relevance");
-    url.searchParams.set("textFormat", "html");
-    url.searchParams.set("key", apiKey);
+  const response = await fetch(
+    `/.netlify/functions/comments?videoId=${encodeURIComponent(videoId)}&max=${maxComments}`
+  );
 
-    if (pageToken) {
-      url.searchParams.set("pageToken", pageToken);
-    }
+  const data = await response.json();
 
-    const response = await fetch(url.toString());
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`YouTube APIエラー: ${response.status} / ${errorText.slice(0, 160)}`);
-    }
-
-    const data = await response.json();
-
-    const items = Array.isArray(data.items) ? data.items : [];
-
-    items.forEach((item) => {
-      const snippet = item?.snippet?.topLevelComment?.snippet || {};
-      const topCommentId = item?.snippet?.topLevelComment?.id || "";
-      const totalReplyCount = Number(item?.snippet?.totalReplyCount || 0);
-
-      comments.push({
-        commentId: topCommentId,
-        author: snippet.authorDisplayName || "",
-        text: normalizeText(snippet.textDisplay || snippet.textOriginal || ""),
-        likeCount: Number(snippet.likeCount || 0),
-        publishedAt: snippet.publishedAt || "",
-        updatedAt: snippet.updatedAt || "",
-        hasReply: totalReplyCount > 0,
-        replyCount: totalReplyCount,
-        url: `https://www.youtube.com/watch?v=${videoId}&lc=${topCommentId}`
-      });
-    });
-
-    pageToken = data.nextPageToken || "";
-
-    if (!pageToken || items.length === 0) {
-      break;
-    }
+  if (!response.ok) {
+    throw new Error(data.error || "コメント取得失敗");
   }
 
-  return comments.slice(0, maxComments);
+  return data.comments || [];
 }
 
 function analyzeComments(comments) {
@@ -279,46 +243,83 @@ function analyzeComments(comments) {
 }
 
 function renderResults(rows, totalComments) {
+
   els.totalCount.textContent = String(totalComments);
   els.questionCount.textContent = String(rows.length);
 
-  const unreplied = rows.filter((row) => row.replyStatus === "未返信").length;
+  const unreplied = rows.filter(
+    (row) => row.replyStatus === "未返信"
+  ).length;
+
   els.unrepliedCount.textContent = String(unreplied);
 
   renderCategorySummary(rows);
 
   if (!rows.length) {
+
     els.resultBody.innerHTML = `
       <tr>
-        <td colspan="7" class="empty">質問らしいコメントは見つかりませんでした。</td>
+        <td colspan="7" class="empty">
+          質問らしいコメントは見つかりませんでした。
+        </td>
       </tr>
     `;
+
     return;
   }
 
   els.resultBody.innerHTML = rows.map((row) => {
+
     const impClass = importanceClass(row.importance);
-    const replyClass = row.replyStatus === "未返信" ? "noreply" : "reply";
+
+    const replyClass =
+      row.replyStatus === "未返信"
+        ? "noreply"
+        : "reply";
 
     return `
       <tr>
         <td>${row.no}</td>
+
         <td>${escapeHtml(row.category)}</td>
-        <td><span class="badge ${impClass}">${escapeHtml(row.importance)}</span></td>
-        <td><span class="badge ${replyClass}">${escapeHtml(row.replyStatus)}</span></td>
+
+        <td>
+          <span class="badge ${impClass}">
+            ${escapeHtml(row.importance)}
+          </span>
+        </td>
+
+        <td>
+          <span class="badge ${replyClass}">
+            ${escapeHtml(row.replyStatus)}
+          </span>
+        </td>
+
         <td>${row.likeCount}</td>
+
         <td>
           ${escapeHtml(row.comment)}
+
           <br />
-          <a href="${escapeHtml(row.commentUrl)}" target="_blank" rel="noopener">コメントを開く</a>
+
+          <a
+            href="${escapeHtml(row.commentUrl)}"
+            target="_blank"
+            rel="noopener"
+          >
+            コメントを開く
+          </a>
         </td>
+
         <td>${escapeHtml(row.author)}</td>
       </tr>
     `;
+
   }).join("");
 }
 
 function renderCategorySummary(rows) {
+
   if (!rows.length) {
     els.categorySummary.innerHTML = "";
     return;
@@ -327,17 +328,25 @@ function renderCategorySummary(rows) {
   const counts = {};
 
   rows.forEach((row) => {
-    counts[row.category] = (counts[row.category] || 0) + 1;
+    counts[row.category] =
+      (counts[row.category] || 0) + 1;
   });
 
-  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  const sorted = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1]);
 
-  els.categorySummary.innerHTML = sorted.map(([category, count]) => {
-    return `<span class="categoryPill">${escapeHtml(category)}：${count}件</span>`;
-  }).join("");
+  els.categorySummary.innerHTML =
+    sorted.map(([category, count]) => {
+      return `
+        <span class="categoryPill">
+          ${escapeHtml(category)}：${count}件
+        </span>
+      `;
+    }).join("");
 }
 
 function downloadExcel() {
+
   if (!latestRows.length) {
     alert("ダウンロードできる分析結果がありません。");
     return;
@@ -346,17 +355,21 @@ function downloadExcel() {
   const summaryRows = [];
 
   const categoryCounts = {};
+
   latestRows.forEach((row) => {
-    categoryCounts[row.category] = (categoryCounts[row.category] || 0) + 1;
+    categoryCounts[row.category] =
+      (categoryCounts[row.category] || 0) + 1;
   });
 
   Object.entries(categoryCounts)
     .sort((a, b) => b[1] - a[1])
     .forEach(([category, count]) => {
+
       summaryRows.push({
         分類: category,
         件数: count
       });
+
     });
 
   const detailRows = latestRows.map((row) => ({
@@ -374,24 +387,39 @@ function downloadExcel() {
 
   const workbook = XLSX.utils.book_new();
 
-  const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
-  const detailSheet = XLSX.utils.json_to_sheet(detailRows);
+  const summarySheet =
+    XLSX.utils.json_to_sheet(summaryRows);
 
-  XLSX.utils.book_append_sheet(workbook, summarySheet, "分類サマリー");
-  XLSX.utils.book_append_sheet(workbook, detailSheet, "質問コメント一覧");
+  const detailSheet =
+    XLSX.utils.json_to_sheet(detailRows);
 
-  XLSX.writeFile(workbook, "youtube-question-comments.xlsx");
+  XLSX.utils.book_append_sheet(
+    workbook,
+    summarySheet,
+    "分類サマリー"
+  );
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    detailSheet,
+    "質問コメント一覧"
+  );
+
+  XLSX.writeFile(
+    workbook,
+    "youtube-question-comments.xlsx"
+  );
 }
 
 async function runAnalyze() {
-  const apiKey = els.apiKey.value.trim();
-  const videoId = extractVideoId(els.videoUrl.value);
-  const maxComments = Number(els.maxComments.value || 100);
 
-  if (!apiKey) {
-    alert("YouTube Data API Keyを入力してください。");
-    return;
-  }
+  const videoId = extractVideoId(
+    els.videoUrl.value
+  );
+
+  const maxComments = Number(
+    els.maxComments.value || 100
+  );
 
   if (!videoId) {
     alert("YouTube動画URLが正しくありません。");
@@ -399,15 +427,22 @@ async function runAnalyze() {
   }
 
   latestRows = [];
+
   els.downloadBtn.disabled = true;
   els.analyzeBtn.disabled = true;
 
   try {
+
     setStatus("コメントを取得しています...");
 
-    const comments = await fetchComments(apiKey, videoId, maxComments);
+    const comments = await fetchComments(
+      videoId,
+      maxComments
+    );
 
-    setStatus(`コメント${comments.length}件を取得しました。質問を抽出しています...`);
+    setStatus(
+      `コメント${comments.length}件を取得しました。質問を抽出しています...`
+    );
 
     const rows = analyzeComments(comments);
 
@@ -415,34 +450,64 @@ async function runAnalyze() {
 
     renderResults(rows, comments.length);
 
-    els.downloadBtn.disabled = rows.length === 0;
+    els.downloadBtn.disabled =
+      rows.length === 0;
 
-    setStatus(`分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。`);
+    setStatus(
+      `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。`
+    );
+
   } catch (error) {
+
     console.error(error);
+
     setStatus(`エラー：${error.message}`);
+
     alert(error.message);
+
   } finally {
+
     els.analyzeBtn.disabled = false;
+
   }
 }
 
 function clearAll() {
+
   latestRows = [];
+
   els.videoUrl.value = "";
+
   els.totalCount.textContent = "0";
   els.questionCount.textContent = "0";
   els.unrepliedCount.textContent = "0";
+
   els.downloadBtn.disabled = true;
+
   els.categorySummary.innerHTML = "";
+
   els.resultBody.innerHTML = `
     <tr>
-      <td colspan="7" class="empty">まだ分析結果はありません。</td>
+      <td colspan="7" class="empty">
+        まだ分析結果はありません。
+      </td>
     </tr>
   `;
-  setStatus("APIキーと動画URLを入力してください。");
+
+  setStatus("動画URLを入力してください。");
 }
 
-els.analyzeBtn.addEventListener("click", runAnalyze);
-els.downloadBtn.addEventListener("click", downloadExcel);
-els.clearBtn.addEventListener("click", clearAll);
+els.analyzeBtn.addEventListener(
+  "click",
+  runAnalyze
+);
+
+els.downloadBtn.addEventListener(
+  "click",
+  downloadExcel
+);
+
+els.clearBtn.addEventListener(
+  "click",
+  clearAll
+);

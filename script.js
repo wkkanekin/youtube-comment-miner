@@ -14,8 +14,40 @@ const els = {
 
 let latestRows = [];
 
+const FREE_USAGE_LIMIT = 3;
+const USAGE_STORAGE_KEY = "youtube_question_miner_usage_count";
+
+function getUsageCount() {
+  return Number(localStorage.getItem(USAGE_STORAGE_KEY) || 0);
+}
+
+function setUsageCount(count) {
+  localStorage.setItem(USAGE_STORAGE_KEY, String(count));
+}
+
+function incrementUsageCount() {
+  const next = getUsageCount() + 1;
+  setUsageCount(next);
+  return next;
+}
+
+function getRemainingUsage() {
+  return Math.max(FREE_USAGE_LIMIT - getUsageCount(), 0);
+}
+
 function setStatus(message) {
   els.status.textContent = message;
+}
+
+function setInitialStatus() {
+  const remaining = getRemainingUsage();
+
+  if (remaining <= 0) {
+    setStatus("無料利用は3回までです。有料プラン準備中です。");
+    return;
+  }
+
+  setStatus(`動画URLを入力してください。無料分析は残り${remaining}回です。`);
 }
 
 function escapeHtml(value) {
@@ -206,7 +238,6 @@ function importanceClass(value) {
 }
 
 async function fetchComments(videoId, maxComments) {
-
   const response = await fetch(
     `/.netlify/functions/comments?videoId=${encodeURIComponent(videoId)}&max=${maxComments}`
   );
@@ -243,20 +274,15 @@ function analyzeComments(comments) {
 }
 
 function renderResults(rows, totalComments) {
-
   els.totalCount.textContent = String(totalComments);
   els.questionCount.textContent = String(rows.length);
 
-  const unreplied = rows.filter(
-    (row) => row.replyStatus === "未返信"
-  ).length;
-
+  const unreplied = rows.filter((row) => row.replyStatus === "未返信").length;
   els.unrepliedCount.textContent = String(unreplied);
 
   renderCategorySummary(rows);
 
   if (!rows.length) {
-
     els.resultBody.innerHTML = `
       <tr>
         <td colspan="7" class="empty">
@@ -264,62 +290,42 @@ function renderResults(rows, totalComments) {
         </td>
       </tr>
     `;
-
     return;
   }
 
   els.resultBody.innerHTML = rows.map((row) => {
-
     const impClass = importanceClass(row.importance);
-
-    const replyClass =
-      row.replyStatus === "未返信"
-        ? "noreply"
-        : "reply";
+    const replyClass = row.replyStatus === "未返信" ? "noreply" : "reply";
 
     return `
       <tr>
         <td>${row.no}</td>
-
         <td>${escapeHtml(row.category)}</td>
-
         <td>
           <span class="badge ${impClass}">
             ${escapeHtml(row.importance)}
           </span>
         </td>
-
         <td>
           <span class="badge ${replyClass}">
             ${escapeHtml(row.replyStatus)}
           </span>
         </td>
-
         <td>${row.likeCount}</td>
-
         <td>
           ${escapeHtml(row.comment)}
-
           <br />
-
-          <a
-            href="${escapeHtml(row.commentUrl)}"
-            target="_blank"
-            rel="noopener"
-          >
+          <a href="${escapeHtml(row.commentUrl)}" target="_blank" rel="noopener">
             コメントを開く
           </a>
         </td>
-
         <td>${escapeHtml(row.author)}</td>
       </tr>
     `;
-
   }).join("");
 }
 
 function renderCategorySummary(rows) {
-
   if (!rows.length) {
     els.categorySummary.innerHTML = "";
     return;
@@ -328,25 +334,21 @@ function renderCategorySummary(rows) {
   const counts = {};
 
   rows.forEach((row) => {
-    counts[row.category] =
-      (counts[row.category] || 0) + 1;
+    counts[row.category] = (counts[row.category] || 0) + 1;
   });
 
-  const sorted = Object.entries(counts)
-    .sort((a, b) => b[1] - a[1]);
+  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
 
-  els.categorySummary.innerHTML =
-    sorted.map(([category, count]) => {
-      return `
-        <span class="categoryPill">
-          ${escapeHtml(category)}：${count}件
-        </span>
-      `;
-    }).join("");
+  els.categorySummary.innerHTML = sorted.map(([category, count]) => {
+    return `
+      <span class="categoryPill">
+        ${escapeHtml(category)}：${count}件
+      </span>
+    `;
+  }).join("");
 }
 
 function downloadExcel() {
-
   if (!latestRows.length) {
     alert("ダウンロードできる分析結果がありません。");
     return;
@@ -355,21 +357,17 @@ function downloadExcel() {
   const summaryRows = [];
 
   const categoryCounts = {};
-
   latestRows.forEach((row) => {
-    categoryCounts[row.category] =
-      (categoryCounts[row.category] || 0) + 1;
+    categoryCounts[row.category] = (categoryCounts[row.category] || 0) + 1;
   });
 
   Object.entries(categoryCounts)
     .sort((a, b) => b[1] - a[1])
     .forEach(([category, count]) => {
-
       summaryRows.push({
         分類: category,
         件数: count
       });
-
     });
 
   const detailRows = latestRows.map((row) => ({
@@ -387,39 +385,26 @@ function downloadExcel() {
 
   const workbook = XLSX.utils.book_new();
 
-  const summarySheet =
-    XLSX.utils.json_to_sheet(summaryRows);
+  const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
+  const detailSheet = XLSX.utils.json_to_sheet(detailRows);
 
-  const detailSheet =
-    XLSX.utils.json_to_sheet(detailRows);
+  XLSX.utils.book_append_sheet(workbook, summarySheet, "分類サマリー");
+  XLSX.utils.book_append_sheet(workbook, detailSheet, "質問コメント一覧");
 
-  XLSX.utils.book_append_sheet(
-    workbook,
-    summarySheet,
-    "分類サマリー"
-  );
-
-  XLSX.utils.book_append_sheet(
-    workbook,
-    detailSheet,
-    "質問コメント一覧"
-  );
-
-  XLSX.writeFile(
-    workbook,
-    "youtube-question-comments.xlsx"
-  );
+  XLSX.writeFile(workbook, "youtube-question-comments.xlsx");
 }
 
 async function runAnalyze() {
+  const currentUsage = getUsageCount();
 
-  const videoId = extractVideoId(
-    els.videoUrl.value
-  );
+  if (currentUsage >= FREE_USAGE_LIMIT) {
+    alert("無料利用は3回までです。有料プラン準備中です。");
+    setStatus("無料利用は3回までです。有料プラン準備中です。");
+    return;
+  }
 
-  const maxComments = Number(
-    els.maxComments.value || 100
-  );
+  const videoId = extractVideoId(els.videoUrl.value);
+  const maxComments = Number(els.maxComments.value || 100);
 
   if (!videoId) {
     alert("YouTube動画URLが正しくありません。");
@@ -427,22 +412,15 @@ async function runAnalyze() {
   }
 
   latestRows = [];
-
   els.downloadBtn.disabled = true;
   els.analyzeBtn.disabled = true;
 
   try {
-
     setStatus("コメントを取得しています...");
 
-    const comments = await fetchComments(
-      videoId,
-      maxComments
-    );
+    const comments = await fetchComments(videoId, maxComments);
 
-    setStatus(
-      `コメント${comments.length}件を取得しました。質問を抽出しています...`
-    );
+    setStatus(`コメント${comments.length}件を取得しました。質問を抽出しています...`);
 
     const rows = analyzeComments(comments);
 
@@ -450,30 +428,31 @@ async function runAnalyze() {
 
     renderResults(rows, comments.length);
 
-    els.downloadBtn.disabled =
-      rows.length === 0;
+    els.downloadBtn.disabled = rows.length === 0;
 
-    setStatus(
-      `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。`
-    );
+    const newUsageCount = incrementUsageCount();
+    const remaining = Math.max(FREE_USAGE_LIMIT - newUsageCount, 0);
+
+    if (remaining > 0) {
+      setStatus(
+        `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。無料分析は残り${remaining}回です。`
+      );
+    } else {
+      setStatus(
+        `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。無料利用は今回で終了です。`
+      );
+    }
 
   } catch (error) {
-
     console.error(error);
-
     setStatus(`エラー：${error.message}`);
-
     alert(error.message);
-
   } finally {
-
     els.analyzeBtn.disabled = false;
-
   }
 }
 
 function clearAll() {
-
   latestRows = [];
 
   els.videoUrl.value = "";
@@ -483,7 +462,6 @@ function clearAll() {
   els.unrepliedCount.textContent = "0";
 
   els.downloadBtn.disabled = true;
-
   els.categorySummary.innerHTML = "";
 
   els.resultBody.innerHTML = `
@@ -494,20 +472,11 @@ function clearAll() {
     </tr>
   `;
 
-  setStatus("動画URLを入力してください。");
+  setInitialStatus();
 }
 
-els.analyzeBtn.addEventListener(
-  "click",
-  runAnalyze
-);
+els.analyzeBtn.addEventListener("click", runAnalyze);
+els.downloadBtn.addEventListener("click", downloadExcel);
+els.clearBtn.addEventListener("click", clearAll);
 
-els.downloadBtn.addEventListener(
-  "click",
-  downloadExcel
-);
-
-els.clearBtn.addEventListener(
-  "click",
-  clearAll
-);
+setInitialStatus();

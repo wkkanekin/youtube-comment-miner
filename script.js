@@ -9,7 +9,9 @@ const els = {
   questionCount: document.getElementById("questionCount"),
   unrepliedCount: document.getElementById("unrepliedCount"),
   resultBody: document.getElementById("resultBody"),
-  categorySummary: document.getElementById("categorySummary")
+  categorySummary: document.getElementById("categorySummary"),
+  upgradeBox: document.getElementById("upgradeBox"),
+  upgradeBtn: document.getElementById("upgradeBtn")
 };
 
 let latestRows = [];
@@ -35,6 +37,11 @@ function getRemainingUsage() {
   return Math.max(FREE_USAGE_LIMIT - getUsageCount(), 0);
 }
 
+function showUpgradeBox(show) {
+  if (!els.upgradeBox) return;
+  els.upgradeBox.classList.toggle("isHidden", !show);
+}
+
 function setStatus(message) {
   els.status.textContent = message;
 }
@@ -43,11 +50,13 @@ function setInitialStatus() {
   const remaining = getRemainingUsage();
 
   if (remaining <= 0) {
-    setStatus("無料利用は3回までです。有料プラン準備中です。");
+    setStatus("無料利用は3回までです。有料プランをご確認ください。");
+    showUpgradeBox(true);
     return;
   }
 
   setStatus(`動画URLを入力してください。無料分析は残り${remaining}回です。`);
+  showUpgradeBox(false);
 }
 
 function escapeHtml(value) {
@@ -398,8 +407,9 @@ async function runAnalyze() {
   const currentUsage = getUsageCount();
 
   if (currentUsage >= FREE_USAGE_LIMIT) {
-    alert("無料利用は3回までです。有料プラン準備中です。");
-    setStatus("無料利用は3回までです。有料プラン準備中です。");
+    alert("無料利用は3回までです。有料プランをご確認ください。");
+    setStatus("無料利用は3回までです。有料プランをご確認ください。");
+    showUpgradeBox(true);
     return;
   }
 
@@ -437,10 +447,12 @@ async function runAnalyze() {
       setStatus(
         `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。無料分析は残り${remaining}回です。`
       );
+      showUpgradeBox(false);
     } else {
       setStatus(
         `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。無料利用は今回で終了です。`
       );
+      showUpgradeBox(true);
     }
 
   } catch (error) {
@@ -473,6 +485,13 @@ function clearAll() {
   `;
 
   setInitialStatus();
+}
+
+if (els.upgradeBtn) {
+  els.upgradeBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    alert("有料プランは準備中です。次のステップでStripe決済を接続します。");
+  });
 }
 
 els.analyzeBtn.addEventListener("click", runAnalyze);

@@ -1,0 +1,75 @@
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<div class="app">
+  <header class="hero">
+    <p class="eyebrow">YouTube Comment Question Miner</p>
+    <h1>YouTubeコメントから質問だけ抽出</h1>
+    <p>
+      YouTube動画URLを入れると、コメントから質問・悩み・要望っぽいものを抽出して、Excelでダウンロードできます。
+    </p>
+  </header>
+
+  <section class="card">
+    <label>YouTube Data API Key</label>
+    <input id="apiKey" type="password" placeholder="AIzaSy..." />
+
+    <label>YouTube動画URL</label>
+    <input id="videoUrl" type="text" placeholder="https://www.youtube.com/watch?v=..." />
+
+    <label>取得件数</label>
+    <select id="maxComments">
+      <option value="50">50件</option>
+      <option value="100" selected>100件</option>
+      <option value="300">300件</option>
+      <option value="500">500件</option>
+    </select>
+
+    <div class="actions">
+      <button id="analyzeBtn">分析する</button>
+      <button id="downloadBtn" disabled>Excelダウンロード</button>
+      <button id="clearBtn" class="sub">クリア</button>
+    </div>
+
+    <p id="status" class="status">APIキーと動画URLを入力してください。</p>
+  </section>
+
+  <section class="summaryGrid">
+    <div class="summaryCard">
+      <span>取得コメント</span>
+      <strong id="totalCount">0</strong>
+    </div>
+    <div class="summaryCard">
+      <span>質問抽出</span>
+      <strong id="questionCount">0</strong>
+    </div>
+    <div class="summaryCard">
+      <span>未返信質問</span>
+      <strong id="unrepliedCount">0</strong>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>分析結果</h2>
+    <div id="categorySummary" class="categorySummary"></div>
+    <div class="tableWrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>分類</th>
+            <th>重要度</th>
+            <th>返信</th>
+            <th>いいね</th>
+            <th>コメント</th>
+            <th>投稿者</th>
+          </tr>
+        </thead>
+        <tbody id="resultBody">
+          <tr>
+            <td colspan="7" class="empty">まだ分析結果はありません。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

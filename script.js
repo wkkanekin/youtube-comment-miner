@@ -487,12 +487,7 @@ function clearAll() {
   setInitialStatus();
 }
 
-if (els.upgradeBtn) {
-  els.upgradeBtn.addEventListener("click", (event) => {
-    event.preventDefault();
-    alert("有料プランは準備中です。次のステップでStripe決済を接続します。");
-  });
-}
+
 
 els.analyzeBtn.addEventListener("click", runAnalyze);
 els.downloadBtn.addEventListener("click", downloadExcel);

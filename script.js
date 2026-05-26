@@ -38,12 +38,13 @@ async function signInWithGoogle() {
   const { error } = await supabaseClient.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: window.location.origin
+      redirectTo: "https://youtube-comment-miner.netlify.app/"
     }
   });
 
   if (error) {
-    alert(error.message);
+    console.error(error);
+    alert("Googleログイン失敗");
   }
 }
 

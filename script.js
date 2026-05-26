@@ -106,6 +106,9 @@ async function initAuth() {
 
   if (user) {
     await createProfile(user);
+    await loadProfile(user);
+  } else {
+    currentProfile = null;
   }
 
   renderAuth(user);
@@ -116,13 +119,15 @@ async function initAuth() {
 
     if (user) {
       await createProfile(user);
+      await loadProfile(user);
+    } else {
+      currentProfile = null;
     }
 
     renderAuth(user);
     setInitialStatus();
   });
 }
-
 function getUsageCount() {
   return Number(currentProfile?.usage_count || 0);
 }
@@ -569,16 +574,18 @@ function downloadExcel() {
   XLSX.writeFile(workbook, "youtube-question-comments.xlsx");
 }
 
-async function runAnalyze() {
+aasync function runAnalyze() {
   if (!currentUser) {
     alert("分析するにはGoogleログインしてください。");
     setStatus("Googleログインすると分析できます。");
     return;
   }
 
-const currentUsage = getUsageCount();
+  await loadProfile(currentUser);
 
-if (!isPaidUser() && currentUsage >= FREE_USAGE_LIMIT) {
+  const currentUsage = getUsageCount();
+
+  if (!isPaidUser() && currentUsage >= FREE_USAGE_LIMIT) {
     alert("無料利用は3回までです。有料プランをご確認ください。");
     setStatus("無料利用は3回までです。有料プランをご確認ください。");
     showUpgradeBox(true);
@@ -613,7 +620,15 @@ if (!isPaidUser() && currentUsage >= FREE_USAGE_LIMIT) {
     els.downloadBtn.disabled = rows.length === 0;
 
     const newUsageCount = await incrementUsageCount();
-const remaining = getRemainingUsage();
+    const remaining = getRemainingUsage();
+
+    if (isPaidUser()) {
+      setStatus(
+        `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。有料プラン利用中です。`
+      );
+      showUpgradeBox(false);
+      return;
+    }
 
     if (remaining > 0) {
       setStatus(
@@ -635,7 +650,6 @@ const remaining = getRemainingUsage();
     els.analyzeBtn.disabled = false;
   }
 }
-
 function clearAll() {
   latestRows = [];
 

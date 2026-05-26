@@ -32,7 +32,8 @@ let latestRows = [];
 let currentUser = null;
 
 const FREE_USAGE_LIMIT = 3;
-const USAGE_STORAGE_KEY = "youtube_question_miner_usage_count";
+
+let currentProfile = null;
 
 async function signInWithGoogle() {
   const { error } = await supabaseClient.auth.signInWithOAuth({
@@ -55,6 +56,33 @@ async function signOut() {
   setInitialStatus();
 }
 
+
+async function createProfile(user) {
+  if (!user) return;
+
+  const { data: existingUser } = await supabaseClient
+    .from("profiles")
+    .select("id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!existingUser) {
+    await supabaseClient
+      .from("profiles")
+      .insert([
+        {
+          id: user.id,
+          email: user.email,
+          plan: "free",
+          usage_count: 0
+        }
+      ]);
+  }
+
+  await loadProfile(user);
+}
+
+
 function renderAuth(user) {
   currentUser = user;
 
@@ -73,30 +101,94 @@ function renderAuth(user) {
 
 async function initAuth() {
   const { data } = await supabaseClient.auth.getSession();
-  renderAuth(data?.session?.user || null);
 
-  supabaseClient.auth.onAuthStateChange((_event, session) => {
-    renderAuth(session?.user || null);
+  const user = data?.session?.user || null;
+
+  if (user) {
+    await createProfile(user);
+  }
+
+  renderAuth(user);
+  setInitialStatus();
+
+  supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+    const user = session?.user || null;
+
+    if (user) {
+      await createProfile(user);
+    }
+
+    renderAuth(user);
     setInitialStatus();
   });
 }
 
 function getUsageCount() {
-  return Number(localStorage.getItem(USAGE_STORAGE_KEY) || 0);
+  return Number(currentProfile?.usage_count || 0);
 }
 
-function setUsageCount(count) {
-  localStorage.setItem(USAGE_STORAGE_KEY, String(count));
+function getPlan() {
+  return currentProfile?.plan || "free";
 }
 
-function incrementUsageCount() {
-  const next = getUsageCount() + 1;
-  setUsageCount(next);
-  return next;
+function isPaidUser() {
+  return getPlan() === "paid";
 }
 
 function getRemainingUsage() {
+  if (isPaidUser()) return Infinity;
+
   return Math.max(FREE_USAGE_LIMIT - getUsageCount(), 0);
+}
+
+async function loadProfile(user) {
+  if (!user) {
+    currentProfile = null;
+    return null;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("profiles")
+    .select("id, email, plan, usage_count")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error(error);
+    currentProfile = null;
+    return null;
+  }
+
+  currentProfile = data;
+  return data;
+}
+
+async function incrementUsageCount() {
+  if (!currentUser || !currentProfile) return 0;
+
+  if (isPaidUser()) {
+    return getUsageCount();
+  }
+
+  const next = getUsageCount() + 1;
+
+  const { data, error } = await supabaseClient
+    .from("profiles")
+    .update({
+      usage_count: next
+    })
+    .eq("id", currentUser.id)
+    .select("id, email, plan, usage_count")
+    .single();
+
+  if (error) {
+    console.error(error);
+    throw new Error("使用回数の更新に失敗しました。");
+  }
+
+  currentProfile = data;
+
+  return next;
 }
 
 function showUpgradeBox(show) {
@@ -111,6 +203,12 @@ function setStatus(message) {
 function setInitialStatus() {
   if (!currentUser) {
     setStatus("Googleログインすると分析できます。");
+    showUpgradeBox(false);
+    return;
+  }
+
+  if (isPaidUser()) {
+    setStatus("有料プラン利用中です。回数制限なしで分析できます。");
     showUpgradeBox(false);
     return;
   }
@@ -478,9 +576,9 @@ async function runAnalyze() {
     return;
   }
 
-  const currentUsage = getUsageCount();
+const currentUsage = getUsageCount();
 
-  if (currentUsage >= FREE_USAGE_LIMIT) {
+if (!isPaidUser() && currentUsage >= FREE_USAGE_LIMIT) {
     alert("無料利用は3回までです。有料プランをご確認ください。");
     setStatus("無料利用は3回までです。有料プランをご確認ください。");
     showUpgradeBox(true);
@@ -514,8 +612,8 @@ async function runAnalyze() {
 
     els.downloadBtn.disabled = rows.length === 0;
 
-    const newUsageCount = incrementUsageCount();
-    const remaining = Math.max(FREE_USAGE_LIMIT - newUsageCount, 0);
+    const newUsageCount = await incrementUsageCount();
+const remaining = getRemainingUsage();
 
     if (remaining > 0) {
       setStatus(

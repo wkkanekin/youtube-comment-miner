@@ -35,6 +35,23 @@
 
   <section class="card">
 
+
+<div class="authBox">
+  <div id="authLoggedOut">
+    <button id="loginBtn" type="button">
+      Googleでログイン
+    </button>
+  </div>
+
+  <div id="authLoggedIn" class="isHidden">
+    <p id="userEmail" class="authEmail"></p>
+
+    <button id="logoutBtn" type="button" class="sub">
+      ログアウト
+    </button>
+  </div>
+</div>
+
     <label>
       YouTube動画URL
     </label>
@@ -184,6 +201,10 @@
   </section>
 
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 
 <script src="script.js"></script>
 

@@ -1,3 +1,12 @@
+const supabaseUrl = "https://grnjerofzgqjapbecmys.supabase.co";
+
+const supabaseKey = "sb_publishable_3nnBZWtQv_gfdhJWMhYiAA_z1v_HiDD";
+
+const supabaseClient = supabase.createClient(
+  supabaseUrl,
+  supabaseKey
+);
+
 const els = {
   videoUrl: document.getElementById("videoUrl"),
   maxComments: document.getElementById("maxComments"),
@@ -11,13 +20,65 @@ const els = {
   resultBody: document.getElementById("resultBody"),
   categorySummary: document.getElementById("categorySummary"),
   upgradeBox: document.getElementById("upgradeBox"),
-  upgradeBtn: document.getElementById("upgradeBtn")
+  upgradeBtn: document.getElementById("upgradeBtn"),
+  loginBtn: document.getElementById("loginBtn"),
+  logoutBtn: document.getElementById("logoutBtn"),
+  authLoggedOut: document.getElementById("authLoggedOut"),
+  authLoggedIn: document.getElementById("authLoggedIn"),
+  userEmail: document.getElementById("userEmail")
 };
 
 let latestRows = [];
+let currentUser = null;
 
 const FREE_USAGE_LIMIT = 3;
 const USAGE_STORAGE_KEY = "youtube_question_miner_usage_count";
+
+async function signInWithGoogle() {
+  const { error } = await supabaseClient.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: window.location.origin
+    }
+  });
+
+  if (error) {
+    alert(error.message);
+  }
+}
+
+async function signOut() {
+  await supabaseClient.auth.signOut();
+  currentUser = null;
+  renderAuth(null);
+  setInitialStatus();
+}
+
+function renderAuth(user) {
+  currentUser = user;
+
+  if (!els.authLoggedOut || !els.authLoggedIn || !els.userEmail) return;
+
+  if (user) {
+    els.authLoggedOut.classList.add("isHidden");
+    els.authLoggedIn.classList.remove("isHidden");
+    els.userEmail.textContent = `ログイン中：${user.email || ""}`;
+  } else {
+    els.authLoggedOut.classList.remove("isHidden");
+    els.authLoggedIn.classList.add("isHidden");
+    els.userEmail.textContent = "";
+  }
+}
+
+async function initAuth() {
+  const { data } = await supabaseClient.auth.getSession();
+  renderAuth(data?.session?.user || null);
+
+  supabaseClient.auth.onAuthStateChange((_event, session) => {
+    renderAuth(session?.user || null);
+    setInitialStatus();
+  });
+}
 
 function getUsageCount() {
   return Number(localStorage.getItem(USAGE_STORAGE_KEY) || 0);
@@ -47,6 +108,12 @@ function setStatus(message) {
 }
 
 function setInitialStatus() {
+  if (!currentUser) {
+    setStatus("Googleログインすると分析できます。");
+    showUpgradeBox(false);
+    return;
+  }
+
   const remaining = getRemainingUsage();
 
   if (remaining <= 0) {
@@ -404,6 +471,12 @@ function downloadExcel() {
 }
 
 async function runAnalyze() {
+  if (!currentUser) {
+    alert("分析するにはGoogleログインしてください。");
+    setStatus("Googleログインすると分析できます。");
+    return;
+  }
+
   const currentUsage = getUsageCount();
 
   if (currentUsage >= FREE_USAGE_LIMIT) {
@@ -487,10 +560,17 @@ function clearAll() {
   setInitialStatus();
 }
 
+if (els.loginBtn) {
+  els.loginBtn.addEventListener("click", signInWithGoogle);
+}
 
+if (els.logoutBtn) {
+  els.logoutBtn.addEventListener("click", signOut);
+}
 
 els.analyzeBtn.addEventListener("click", runAnalyze);
 els.downloadBtn.addEventListener("click", downloadExcel);
 els.clearBtn.addEventListener("click", clearAll);
 
+initAuth();
 setInitialStatus();

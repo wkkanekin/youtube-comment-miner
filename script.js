@@ -574,7 +574,7 @@ function downloadExcel() {
   XLSX.writeFile(workbook, "youtube-question-comments.xlsx");
 }
 
-aasync function runAnalyze() {
+async function runAnalyze() {
   if (!currentUser) {
     alert("分析するにはGoogleログインしてください。");
     setStatus("Googleログインすると分析できます。");

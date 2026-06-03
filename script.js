@@ -1,11 +1,6 @@
 const supabaseUrl = "https://grnjerofzgqjapbecmys.supabase.co";
-
 const supabaseKey = "sb_publishable_3nnBZWtQv_gfdhJWMhYiAA_z1v_HiDD";
-
-const supabaseClient = supabase.createClient(
-  supabaseUrl,
-  supabaseKey
-);
+const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 const els = {
   videoUrl: document.getElementById("videoUrl"),
@@ -16,9 +11,12 @@ const els = {
   status: document.getElementById("status"),
   totalCount: document.getElementById("totalCount"),
   questionCount: document.getElementById("questionCount"),
-  unrepliedCount: document.getElementById("unrepliedCount"),
+  demandCount: document.getElementById("demandCount"),
+  demandRanking: document.getElementById("demandRanking"),
+  representativeQuestions: document.getElementById("representativeQuestions"),
+  contentIdeas: document.getElementById("contentIdeas"),
+  questionSearch: document.getElementById("questionSearch"),
   resultBody: document.getElementById("resultBody"),
-  categorySummary: document.getElementById("categorySummary"),
   upgradeBox: document.getElementById("upgradeBox"),
   upgradeBtn: document.getElementById("upgradeBtn"),
   loginBtn: document.getElementById("loginBtn"),
@@ -28,13 +26,188 @@ const els = {
   userEmail: document.getElementById("userEmail")
 };
 
-let latestRows = [];
+const FREE_USAGE_LIMIT = 3;
+const PAID_USAGE_AMOUNT = 30;
+const MAX_COMMENT_LIMIT = 500;
+const DEFAULT_REDIRECT_URL = `${window.location.origin}/`;
+
 let currentUser = null;
 let currentProfile = null;
 
-const FREE_USAGE_LIMIT = 3;
-const PAID_USAGE_AMOUNT = 30;
-const DEFAULT_REDIRECT_URL = `${window.location.origin}/`;
+let latestAnalysis = {
+  videoId: "",
+  totalComments: 0,
+  questions: [],
+  demands: [],
+  ideas: []
+};
+
+const QUESTION_SIGNALS = [
+  "？",
+  "?",
+  "教えて",
+  "知りたい",
+  "どう",
+  "どこ",
+  "いつ",
+  "なぜ",
+  "なんで",
+  "いくら",
+  "何円",
+  "何点",
+  "必要",
+  "できますか",
+  "できる",
+  "ですか",
+  "ますか",
+  "でしょうか",
+  "ありますか",
+  "いますか",
+  "可能",
+  "方法",
+  "やり方",
+  "おすすめ",
+  "違い",
+  "比較",
+  "意味",
+  "理由",
+  "どっち",
+  "どちら",
+  "手順",
+  "設定",
+  "わかる",
+  "わかります",
+  "わからない",
+  "困って",
+  "不安",
+  "悩み",
+  "how",
+  "what",
+  "why",
+  "when",
+  "where",
+  "which",
+  "can",
+  "do you",
+  "does",
+  "is it",
+  "are there",
+  "recommend",
+  "compare",
+  "difference"
+];
+
+const DEMAND_RULES = [
+  {
+    seed: "料金",
+    title: "料金・費用",
+    words: ["料金", "費用", "金額", "いくら", "月額", "課金", "無料", "有料", "プラン", "価格", "値段", "price", "cost", "fee", "money"]
+  },
+  {
+    seed: "違い",
+    title: "比較・違い",
+    words: ["違い", "比較", "vs", "VS", "どっち", "どちら", "おすすめ", "代替", "移行", "メリット", "compare", "difference", "better", "versus"]
+  },
+  {
+    seed: "導入",
+    title: "導入方法",
+    words: ["導入", "始め方", "インストール", "登録", "セットアップ", "初期設定", "設定", "使い始め", "setup", "install", "start"]
+  },
+  {
+    seed: "使い方",
+    title: "使い方・やり方",
+    words: ["使い方", "やり方", "方法", "手順", "どうやって", "操作", "作り方", "やるには", "how to", "tutorial"]
+  },
+  {
+    seed: "初心者",
+    title: "初心者向け",
+    words: ["初心者", "初めて", "未経験", "入門", "わからない", "簡単", "難しい", "beginner", "easy"]
+  },
+  {
+    seed: "Windows",
+    title: "Windows対応",
+    words: ["windows", "ウィンドウズ", "win"]
+  },
+  {
+    seed: "Mac",
+    title: "Mac対応",
+    words: ["mac", "マック", "macbook", "ios"]
+  },
+  {
+    seed: "スマホ",
+    title: "スマホ対応",
+    words: ["スマホ", "スマートフォン", "iphone", "android", "アプリ", "mobile"]
+  },
+  {
+    seed: "API",
+    title: "API・連携",
+    words: ["api", "連携", "キー", "key", "認証", "oauth", "webhook"]
+  },
+  {
+    seed: "エラー",
+    title: "エラー・トラブル",
+    words: ["エラー", "できない", "動かない", "失敗", "表示されない", "バグ", "詰ま", "困って", "error", "bug", "failed", "not working"]
+  },
+  {
+    seed: "MCP",
+    title: "MCP設定",
+    words: ["mcp", "サーバー", "server", "設定ファイル"]
+  },
+  {
+    seed: "安全",
+    title: "安全性・リスク",
+    words: ["安全", "危険", "リスク", "不安", "怖い", "個人情報", "セキュリティ", "security", "privacy"]
+  },
+  {
+    seed: "英語",
+    title: "英語・語学",
+    words: ["英語", "英語力", "ielts", "toefl", "語学", "english"]
+  },
+  {
+    seed: "学費",
+    title: "学費・生活費",
+    words: ["学費", "生活費", "家賃", "寮", "奨学金", "費用", "お金"]
+  },
+  {
+    seed: "面接",
+    title: "面接・出願",
+    words: ["面接", "出願", "書類", "志望理由", "合格", "入試", "試験"]
+  }
+];
+
+const KNOWN_TOPIC_WORDS = [
+  "Cursor",
+  "Claude Code",
+  "Claude",
+  "ChatGPT",
+  "Gemini",
+  "Perplexity",
+  "API",
+  "Windows",
+  "Mac",
+  "MCP",
+  "Supabase",
+  "Netlify",
+  "Stripe",
+  "YouTube",
+  "TikTok",
+  "X",
+  "Instagram",
+  "WordPress",
+  "Canva",
+  "料金",
+  "無料",
+  "有料",
+  "導入",
+  "設定",
+  "使い方",
+  "やり方",
+  "英語",
+  "学費",
+  "奨学金",
+  "面接",
+  "出願"
+];
 
 async function signInWithGoogle() {
   const { error } = await supabaseClient.auth.signInWithOAuth({
@@ -46,7 +219,7 @@ async function signInWithGoogle() {
 
   if (error) {
     console.error(error);
-    alert("Googleログイン失敗");
+    alert("Googleログインに失敗しました。");
   }
 }
 
@@ -98,25 +271,17 @@ function renderAuth(user) {
 
   if (!els.authLoggedOut || !els.authLoggedIn || !els.userEmail) return;
 
-  if (user) {
-    els.authLoggedOut.classList.add("isHidden");
-    els.authLoggedIn.classList.remove("isHidden");
-    els.userEmail.textContent = `ログイン中：${user.email || ""}`;
-  } else {
-    els.authLoggedOut.classList.remove("isHidden");
-    els.authLoggedIn.classList.add("isHidden");
-    els.userEmail.textContent = "";
-  }
+  els.authLoggedOut.classList.toggle("isHidden", Boolean(user));
+  els.authLoggedIn.classList.toggle("isHidden", !user);
+  els.userEmail.textContent = user ? `ログイン中：${user.email || ""}` : "";
 }
 
 async function initAuth() {
   const { data } = await supabaseClient.auth.getSession();
-
   const user = data?.session?.user || null;
 
   if (user) {
     await createProfile(user);
-    await loadProfile(user);
   } else {
     currentProfile = null;
   }
@@ -129,7 +294,6 @@ async function initAuth() {
 
     if (user) {
       await createProfile(user);
-      await loadProfile(user);
     } else {
       currentProfile = null;
     }
@@ -154,14 +318,6 @@ function getPaidUsageRemaining() {
   return Number(currentProfile?.paid_usage_remaining || 0);
 }
 
-function getPlan() {
-  return currentProfile?.plan || "free";
-}
-
-function isPaidUser() {
-  return getPlan() === "paid" || getPaidUsageRemaining() > 0;
-}
-
 function getFreeRemainingUsage() {
   return Math.max(FREE_USAGE_LIMIT - getFreeUsageCount(), 0);
 }
@@ -169,14 +325,22 @@ function getFreeRemainingUsage() {
 function getRemainingUsage() {
   const freeRemaining = getFreeRemainingUsage();
 
-  if (freeRemaining > 0) return freeRemaining;
+  if (freeRemaining > 0) {
+    return freeRemaining;
+  }
 
   return Math.max(getPaidUsageRemaining(), 0);
 }
 
 function getUsageMode() {
-  if (getFreeRemainingUsage() > 0) return "free";
-  if (getPaidUsageRemaining() > 0) return "paid";
+  if (getFreeRemainingUsage() > 0) {
+    return "free";
+  }
+
+  if (getPaidUsageRemaining() > 0) {
+    return "paid";
+  }
+
   return "none";
 }
 
@@ -267,13 +431,15 @@ async function incrementUsageCount() {
 }
 
 function showUpgradeBox(show) {
-  if (!els.upgradeBox) return;
-  els.upgradeBox.classList.toggle("isHidden", !show);
+  if (els.upgradeBox) {
+    els.upgradeBox.classList.toggle("isHidden", !show);
+  }
 }
 
 function setStatus(message) {
-  if (!els.status) return;
-  els.status.textContent = message;
+  if (els.status) {
+    els.status.textContent = message;
+  }
 }
 
 function setInitialStatus() {
@@ -311,33 +477,6 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function extractVideoId(url) {
-  const text = String(url || "").trim();
-
-  if (!text) return "";
-
-  const patterns = [
-    /youtube\.com\/watch\?v=([^&]+)/,
-    /youtube\.com\/shorts\/([^?&/]+)/,
-    /youtu\.be\/([^?&/]+)/,
-    /youtube\.com\/embed\/([^?&/]+)/
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-
-  if (/^[a-zA-Z0-9_-]{11}$/.test(text)) {
-    return text;
-  }
-
-  return "";
-}
-
 function normalizeText(text) {
   return String(text || "")
     .replace(/<br\s*\/?>/gi, "\n")
@@ -345,138 +484,170 @@ function normalizeText(text) {
     .replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
+function normalizeForKey(text) {
+  return normalizeText(text)
+    .toLowerCase()
+    .replace(/[！？?！。、,.・/\[\]【】「」『』（）()\-ー〜~]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractVideoId(url) {
+  const text = String(url || "").trim();
+
+  if (!text) return "";
+
+  try {
+    const parsed = new URL(text);
+
+    if (parsed.hostname.includes("youtube.com")) {
+      if (parsed.searchParams.get("v")) {
+        return parsed.searchParams.get("v");
+      }
+
+      const parts = parsed.pathname.split("/").filter(Boolean);
+
+      if (["shorts", "embed", "live"].includes(parts[0]) && parts[1]) {
+        return parts[1];
+      }
+    }
+
+    if (parsed.hostname === "youtu.be") {
+      return parsed.pathname.split("/").filter(Boolean)[0] || "";
+    }
+  } catch (_error) {
+    // URLではなく動画IDだけ入力された場合も許可する
+  }
+
+  return /^[a-zA-Z0-9_-]{11}$/.test(text) ? text : "";
+}
+
+function getCommentText(comment) {
+  return normalizeText(
+    comment?.text ||
+    comment?.textDisplay ||
+    comment?.textOriginal ||
+    comment?.snippet?.textDisplay ||
+    comment?.snippet?.textOriginal ||
+    ""
+  );
+}
+
 function isQuestionLike(text) {
-  const t = normalizeText(text).toLowerCase();
+  const raw = normalizeText(text);
+  const t = raw.toLowerCase();
 
   if (!t) return false;
 
-  const questionSignals = [
-    "?",
-    "？",
-    "教えて",
-    "知りたい",
-    "どう",
-    "どの",
-    "どこ",
-    "いつ",
-    "なぜ",
-    "なんで",
-    "いくら",
-    "何円",
-    "何点",
-    "必要",
-    "できますか",
-    "ですか",
-    "でしょうか",
-    "ありますか",
-    "いますか",
-    "可能",
-    "方法",
-    "やり方",
-    "おすすめ",
-    "違い",
-    "比較",
-    "意味",
-    "理由",
-    "how",
-    "what",
-    "why",
-    "when",
-    "where",
-    "which",
-    "can i",
-    "can you",
-    "do you",
-    "does",
-    "is it",
-    "are there",
-    "any tips",
-    "recommend"
-  ];
-
-  return questionSignals.some((signal) => t.includes(signal));
-}
-
-function classifyComment(text) {
-  const t = normalizeText(text).toLowerCase();
-
-  const categories = [
-    {
-      name: "料金・費用",
-      words: ["費用", "料金", "金額", "いくら", "高い", "安い", "学費", "生活費", "price", "cost", "fee", "money"]
-    },
-    {
-      name: "やり方・手順",
-      words: ["方法", "やり方", "手順", "どうやって", "始め方", "使い方", "設定", "how", "step", "setup"]
-    },
-    {
-      name: "比較・おすすめ",
-      words: ["おすすめ", "どっち", "比較", "違い", "選ぶ", "ランキング", "recommend", "better", "compare", "best"]
-    },
-    {
-      name: "不安・悩み",
-      words: ["不安", "怖い", "心配", "難しい", "無理", "困って", "できない", "悩み", "anxious", "worried", "hard", "difficult"]
-    },
-    {
-      name: "購入・導入検討",
-      words: ["買う", "購入", "申し込み", "登録", "契約", "導入", "使いたい", "buy", "purchase", "subscribe", "sign up"]
-    },
-    {
-      name: "トラブル・エラー",
-      words: ["エラー", "動かない", "できません", "表示されない", "バグ", "失敗", "error", "bug", "not working", "failed"]
-    },
-    {
-      name: "動画リクエスト",
-      words: ["動画にして", "解説して", "取り上げて", "企画", "次回", "もっと", "please make", "cover", "next video"]
-    }
-  ];
-
-  for (const category of categories) {
-    if (category.words.some((word) => t.includes(word))) {
-      return category.name;
-    }
+  if (QUESTION_SIGNALS.some((signal) => t.includes(String(signal).toLowerCase()))) {
+    return true;
   }
 
-  return "一般質問";
+  if (/[？?]/.test(raw)) {
+    return true;
+  }
+
+  if (/(ですか|ますか|でしょうか|できる|できない|ありますか|いますか|どれ|どこ|いつ|なに|何|誰|なぜ|どう|いくら)/.test(raw)) {
+    return true;
+  }
+
+  return false;
 }
 
-function scoreImportance(comment) {
+function extractKnownTopic(text) {
+  const raw = normalizeText(text);
+  const lower = raw.toLowerCase();
+
+  const found = KNOWN_TOPIC_WORDS.find((word) => {
+    return lower.includes(String(word).toLowerCase());
+  });
+
+  return found || "";
+}
+
+function pickDemandTitle(text) {
+  const raw = normalizeText(text);
+  const t = normalizeForKey(raw);
+  const topic = extractKnownTopic(raw);
+
+  const matched = DEMAND_RULES.find((rule) => {
+    return rule.words.some((word) => t.includes(String(word).toLowerCase()));
+  });
+
+  if (matched) {
+    if (topic) {
+      if (matched.seed === "料金") return `${topic}料金`;
+      if (matched.seed === "違い") return `${topic}との違い`;
+      if (matched.seed === "導入") return `${topic}導入方法`;
+      if (matched.seed === "使い方") return `${topic}の使い方`;
+      if (matched.seed === "初心者") return `${topic}初心者向け`;
+      if (matched.seed === "Windows") return "Windows対応";
+      if (matched.seed === "Mac") return "Mac対応";
+      if (matched.seed === "スマホ") return "スマホ対応";
+      if (matched.seed === "API") return `${topic} API`;
+      if (matched.seed === "エラー") return `${topic}エラー対策`;
+      if (matched.seed === "MCP") return "MCP設定";
+      if (matched.seed === "安全") return `${topic}安全性`;
+      if (matched.seed === "英語") return "英語・語学";
+      if (matched.seed === "学費") return "学費・生活費";
+      if (matched.seed === "面接") return "面接・出願";
+    }
+
+    return matched.title;
+  }
+
+  const clean = raw
+    .replace(/^(質問|教えてください|教えて|知りたいです|知りたい|すみません|こんにちは)[、,.。\s]*/g, "")
+    .replace(/[？?。！!]+$/g, "")
+    .trim();
+
+  if (clean.length <= 18) {
+    return clean || "その他の疑問";
+  }
+
+  return `${clean.slice(0, 18)}…`;
+}
+
+function scoreImportance(comment, groupCount = 1) {
   const text = normalizeText(comment.text).toLowerCase();
 
   let score = 0;
 
-  if (comment.likeCount >= 10) score += 3;
-  else if (comment.likeCount >= 3) score += 2;
-  else if (comment.likeCount >= 1) score += 1;
+  const likes = Number(comment.likeCount || 0);
 
-  if (!comment.hasReply) score += 2;
+  if (likes >= 10) score += 3;
+  else if (likes >= 3) score += 2;
+  else if (likes >= 1) score += 1;
 
-  const strongSignals = [
+  if (groupCount >= 10) score += 3;
+  else if (groupCount >= 4) score += 2;
+  else if (groupCount >= 2) score += 1;
+
+  [
     "困って",
     "できない",
     "教えて",
     "知りたい",
-    "不安",
-    "悩み",
-    "至急",
+    "必要",
     "お願いします",
+    "至急",
+    "おすすめ",
+    "比較",
+    "違い",
     "help",
-    "urgent",
-    "problem",
     "not working"
-  ];
-
-  strongSignals.forEach((signal) => {
+  ].forEach((signal) => {
     if (text.includes(signal)) {
       score += 1;
     }
   });
 
-  if (score >= 5) return "高";
+  if (score >= 6) return "高";
   if (score >= 3) return "中";
 
   return "低";
@@ -490,86 +661,248 @@ function importanceClass(value) {
 }
 
 async function fetchComments(videoId, maxComments) {
+  const safeMax = Math.min(Math.max(Number(maxComments || 100), 1), MAX_COMMENT_LIMIT);
+
   const response = await fetch(
-    `/.netlify/functions/comments?videoId=${encodeURIComponent(videoId)}&max=${maxComments}`
+    `/.netlify/functions/comments?videoId=${encodeURIComponent(videoId)}&max=${safeMax}`
   );
 
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.error || "コメント取得失敗");
+    throw new Error(data.error || "コメント取得に失敗しました。");
   }
 
-  return data.comments || [];
+  return Array.isArray(data.comments) ? data.comments : [];
 }
 
-function analyzeComments(comments) {
-  return comments
-    .filter((comment) => isQuestionLike(comment.text))
-    .map((comment, index) => {
-      const category = classifyComment(comment.text);
-      const importance = scoreImportance(comment);
+function buildDemandGroups(questionRows) {
+  const groupMap = new Map();
 
-      return {
-        no: index + 1,
-        category,
-        importance,
-        replyStatus: comment.hasReply ? "返信あり" : "未返信",
-        replyCount: comment.replyCount,
-        likeCount: comment.likeCount,
-        comment: comment.text,
-        author: comment.author,
-        publishedAt: comment.publishedAt,
-        commentUrl: comment.url
-      };
+  questionRows.forEach((row) => {
+    const demand = pickDemandTitle(row.question);
+
+    if (!groupMap.has(demand)) {
+      groupMap.set(demand, {
+        demand,
+        count: 0,
+        totalLikes: 0,
+        questions: []
+      });
+    }
+
+    const group = groupMap.get(demand);
+
+    group.count += 1;
+    group.totalLikes += Number(row.likeCount || 0);
+    group.questions.push(row);
+  });
+
+  return Array.from(groupMap.values())
+    .map((group) => ({
+      ...group,
+      representativeQuestions: group.questions
+        .slice()
+        .sort((a, b) => {
+          return (b.likeCount - a.likeCount) || a.no - b.no;
+        })
+        .slice(0, 3)
+        .map((row) => row.question)
+    }))
+    .sort((a, b) => {
+      return (b.count - a.count) ||
+        (b.totalLikes - a.totalLikes) ||
+        a.demand.localeCompare(b.demand, "ja");
     });
 }
 
-function renderResults(rows, totalComments) {
-  els.totalCount.textContent = String(totalComments);
-  els.questionCount.textContent = String(rows.length);
+function makeContentIdeas(demands) {
+  return demands.slice(0, 8).map((group, index) => {
+    const count = group.count;
+    const stars = count >= 10 || index === 0 ? 5 : count >= 4 ? 4 : count >= 2 ? 3 : 2;
+    const starText = "★".repeat(stars) + "☆".repeat(5 - stars);
+    const title = makeIdeaTitle(group.demand);
 
-  const unreplied = rows.filter((row) => row.replyStatus === "未返信").length;
-  els.unrepliedCount.textContent = String(unreplied);
+    return {
+      rating: starText,
+      title,
+      reason: `${group.count}件の質問が集まっています。実際の質問例：「${group.representativeQuestions[0] || group.demand}」`
+    };
+  });
+}
 
-  renderCategorySummary(rows);
+function makeIdeaTitle(demand) {
+  const d = String(demand || "");
 
-  if (!rows.length) {
-    els.resultBody.innerHTML = `
-      <tr>
-        <td colspan="7" class="empty">
-          質問らしいコメントは見つかりませんでした。
-        </td>
-      </tr>
-    `;
+  if (d.includes("料金")) return `${d}完全ガイド`;
+  if (d.includes("違い") || d.includes("比較")) return `${d}を完全比較`;
+  if (d.includes("導入")) return `${d}ガイド`;
+  if (d.includes("使い方") || d.includes("やり方")) return `${d}を初心者向けに解説`;
+  if (d.includes("初心者")) return `${d}スタートガイド`;
+  if (d.includes("Windows")) return "Windows導入手順";
+  if (d.includes("Mac")) return "Mac導入手順";
+  if (d.includes("API")) return `${d}設定・料金・使い方ガイド`;
+  if (d.includes("エラー") || d.includes("トラブル")) return `${d}まとめ`;
+  if (d.includes("MCP")) return "失敗しないMCP設定方法";
+  if (d.includes("安全")) return `${d}をわかりやすく解説`;
+  if (d.includes("英語")) return "英語力・語学対策まとめ";
+  if (d.includes("学費")) return "学費・生活費のリアルまとめ";
+  if (d.includes("面接")) return "面接・出願対策まとめ";
+
+  return `${d}をわかりやすく解説`;
+}
+
+function analyzeComments(comments) {
+  const questions = comments
+    .map((comment) => {
+      return {
+        ...comment,
+        normalizedText: getCommentText(comment)
+      };
+    })
+    .filter((comment) => isQuestionLike(comment.normalizedText))
+    .map((comment, index) => {
+      const question = normalizeText(comment.normalizedText);
+
+      return {
+        no: index + 1,
+        seed: pickDemandTitle(question),
+        importance: "低",
+        likeCount: Number(comment.likeCount || 0),
+        question,
+        author: comment.author || "",
+        publishedAt: comment.publishedAt || "",
+        commentUrl: comment.url || ""
+      };
+    });
+
+  const demands = buildDemandGroups(questions);
+
+  const countByDemand = Object.fromEntries(
+    demands.map((group) => [group.demand, group.count])
+  );
+
+  questions.forEach((row) => {
+    row.importance = scoreImportance(
+      {
+        text: row.question,
+        likeCount: row.likeCount
+      },
+      countByDemand[row.seed] || 1
+    );
+  });
+
+  const finalDemands = buildDemandGroups(questions);
+
+  return {
+    questions,
+    demands: finalDemands,
+    ideas: makeContentIdeas(finalDemands)
+  };
+}
+
+function renderResults(analysis, totalComments) {
+  const { questions, demands, ideas } = analysis;
+
+  if (els.totalCount) els.totalCount.textContent = String(totalComments);
+  if (els.questionCount) els.questionCount.textContent = String(questions.length);
+  if (els.demandCount) els.demandCount.textContent = String(demands.length);
+
+  renderDemandRanking(demands);
+  renderRepresentativeQuestions(demands);
+  renderContentIdeas(ideas);
+  renderQuestionTable(questions);
+}
+
+function renderDemandRanking(demands) {
+  if (!els.demandRanking) return;
+
+  if (!demands.length) {
+    els.demandRanking.innerHTML = `<p class="emptyBox">質問からネタの種を見つけられませんでした。</p>`;
     return;
   }
 
-  els.resultBody.innerHTML = rows.map((row) => {
-    const impClass = importanceClass(row.importance);
-    const replyClass = row.replyStatus === "未返信" ? "noreply" : "reply";
+  els.demandRanking.innerHTML = demands.slice(0, 10).map((group, index) => {
+    return `
+      <div class="demandItem">
+        <span class="demandRank">${index + 1}</span>
+        <div>
+          <div class="demandName">${escapeHtml(group.demand)}</div>
+          <div class="demandMeta">代表質問：${escapeHtml(group.representativeQuestions[0] || "-")}</div>
+        </div>
+        <div class="demandCount">${group.count}件</div>
+      </div>
+    `;
+  }).join("");
+}
 
+function renderRepresentativeQuestions(demands) {
+  if (!els.representativeQuestions) return;
+
+  if (!demands.length) {
+    els.representativeQuestions.innerHTML = `<p class="emptyBox">まだ質問はありません。</p>`;
+    return;
+  }
+
+  els.representativeQuestions.innerHTML = demands.slice(0, 8).map((group) => {
+    return `
+      <div class="questionGroup">
+        <h3>${escapeHtml(group.demand)}</h3>
+        <ul>
+          ${group.representativeQuestions.map((question) => `<li>${escapeHtml(question)}</li>`).join("")}
+        </ul>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderContentIdeas(ideas) {
+  if (!els.contentIdeas) return;
+
+  if (!ideas.length) {
+    els.contentIdeas.innerHTML = `<p class="emptyBox">まだ記事・動画ネタ候補はありません。</p>`;
+    return;
+  }
+
+  els.contentIdeas.innerHTML = ideas.map((idea) => {
+    return `
+      <div class="ideaItem">
+        <div class="ideaStars">${escapeHtml(idea.rating)}</div>
+        <div class="ideaTitle">${escapeHtml(idea.title)}</div>
+        <div class="ideaReason">${escapeHtml(idea.reason)}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderQuestionTable(rows) {
+  if (!els.resultBody) return;
+
+  const keyword = normalizeForKey(els.questionSearch?.value || "");
+
+  const filtered = keyword
+    ? rows.filter((row) => {
+        return normalizeForKey(
+          `${row.seed} ${row.importance} ${row.likeCount} ${row.question} ${row.author}`
+        ).includes(keyword);
+      })
+    : rows;
+
+  if (!filtered.length) {
+    els.resultBody.innerHTML = `<tr><td colspan="6" class="empty">表示できる質問はありません。</td></tr>`;
+    return;
+  }
+
+  els.resultBody.innerHTML = filtered.map((row) => {
     return `
       <tr>
         <td>${row.no}</td>
-        <td>${escapeHtml(row.category)}</td>
-        <td>
-          <span class="badge ${impClass}">
-            ${escapeHtml(row.importance)}
-          </span>
-        </td>
-        <td>
-          <span class="badge ${replyClass}">
-            ${escapeHtml(row.replyStatus)}
-          </span>
-        </td>
+        <td>${escapeHtml(row.seed)}</td>
+        <td><span class="badge ${importanceClass(row.importance)}">${escapeHtml(row.importance)}</span></td>
         <td>${row.likeCount}</td>
         <td>
-          ${escapeHtml(row.comment)}
-          <br />
-          <a href="${escapeHtml(row.commentUrl)}" target="_blank" rel="noopener">
-            コメントを開く
-          </a>
+          ${escapeHtml(row.question)}
+          ${row.commentUrl ? `<br><a href="${escapeHtml(row.commentUrl)}" target="_blank" rel="noopener">コメントを開く</a>` : ""}
         </td>
         <td>${escapeHtml(row.author)}</td>
       </tr>
@@ -577,73 +910,56 @@ function renderResults(rows, totalComments) {
   }).join("");
 }
 
-function renderCategorySummary(rows) {
-  if (!rows.length) {
-    els.categorySummary.innerHTML = "";
-    return;
-  }
-
-  const counts = {};
-
-  rows.forEach((row) => {
-    counts[row.category] = (counts[row.category] || 0) + 1;
-  });
-
-  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-
-  els.categorySummary.innerHTML = sorted.map(([category, count]) => {
-    return `
-      <span class="categoryPill">
-        ${escapeHtml(category)}：${count}件
-      </span>
-    `;
-  }).join("");
-}
-
 function downloadExcel() {
-  if (!latestRows.length) {
+  if (!latestAnalysis.questions.length) {
     alert("ダウンロードできる分析結果がありません。");
     return;
   }
 
-  const summaryRows = [];
-
-  const categoryCounts = {};
-  latestRows.forEach((row) => {
-    categoryCounts[row.category] = (categoryCounts[row.category] || 0) + 1;
-  });
-
-  Object.entries(categoryCounts)
-    .sort((a, b) => b[1] - a[1])
-    .forEach(([category, count]) => {
-      summaryRows.push({
-        分類: category,
-        件数: count
-      });
-    });
-
-  const detailRows = latestRows.map((row) => ({
-    No: row.no,
-    分類: row.category,
-    重要度: row.importance,
-    返信状況: row.replyStatus,
-    返信数: row.replyCount,
-    いいね数: row.likeCount,
-    コメント: row.comment,
-    投稿者: row.author,
-    投稿日: row.publishedAt,
-    コメントURL: row.commentUrl
-  }));
-
   const workbook = XLSX.utils.book_new();
 
-  const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
-  const detailSheet = XLSX.utils.json_to_sheet(detailRows);
+  const demandRows = latestAnalysis.demands.map((group, index) => ({
+    順位: index + 1,
+    ネタ: group.demand,
+    件数: group.count
+  }));
 
-  XLSX.utils.book_append_sheet(workbook, summarySheet, "分類サマリー");
-  XLSX.utils.book_append_sheet(workbook, detailSheet, "質問コメント一覧");
+  const ideaRows = latestAnalysis.ideas.map((idea) => ({
+    評価: idea.rating,
+    タイトル: idea.title,
+    理由: idea.reason
+  }));
 
-  XLSX.writeFile(workbook, "youtube-question-comments.xlsx");
+  const questionRows = latestAnalysis.questions.map((row) => ({
+    No: row.no,
+    ネタの種: row.seed,
+    重要度: row.importance,
+    いいね数: row.likeCount,
+    質問: row.question,
+    投稿者: row.author,
+    URL: row.commentUrl,
+    投稿日: row.publishedAt
+  }));
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.json_to_sheet(demandRows),
+    "需要ランキング"
+  );
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.json_to_sheet(ideaRows),
+    "記事・動画ネタ候補"
+  );
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.json_to_sheet(questionRows),
+    "質問一覧"
+  );
+
+  XLSX.writeFile(workbook, "youtube-neta-analysis.xlsx");
 }
 
 async function runAnalyze() {
@@ -672,37 +988,46 @@ async function runAnalyze() {
     return;
   }
 
-  latestRows = [];
-  els.downloadBtn.disabled = true;
-  els.analyzeBtn.disabled = true;
+  latestAnalysis = {
+    videoId,
+    totalComments: 0,
+    questions: [],
+    demands: [],
+    ideas: []
+  };
+
+  if (els.downloadBtn) els.downloadBtn.disabled = true;
+  if (els.analyzeBtn) els.analyzeBtn.disabled = true;
 
   try {
     setStatus("コメントを取得しています...");
 
     const comments = await fetchComments(videoId, maxComments);
 
-    setStatus(`コメント${comments.length}件を取得しました。質問を抽出しています...`);
+    setStatus(`コメント${comments.length}件を取得しました。質問を抽出し、需要ランキングを作成しています...`);
 
-    const rows = analyzeComments(comments);
+    const analysis = analyzeComments(comments);
 
-    latestRows = rows;
+    latestAnalysis = {
+      videoId,
+      totalComments: comments.length,
+      ...analysis
+    };
 
-    renderResults(rows, comments.length);
+    renderResults(analysis, comments.length);
 
-    els.downloadBtn.disabled = rows.length === 0;
+    if (els.downloadBtn) {
+      els.downloadBtn.disabled = analysis.questions.length === 0;
+    }
 
     const usageResult = await incrementUsageCount();
 
     if (usageResult.mode === "free") {
       if (usageResult.remaining > 0) {
-        setStatus(
-          `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。無料分析は残り${usageResult.remaining}回です。`
-        );
+        setStatus(`分析完了：${comments.length}件中、質問を${analysis.questions.length}件抽出し、ネタの種を${analysis.demands.length}件作成しました。無料分析は残り${usageResult.remaining}回です。`);
         showUpgradeBox(false);
       } else {
-        setStatus(
-          `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。無料利用は今回で終了です。`
-        );
+        setStatus(`分析完了：${comments.length}件中、質問を${analysis.questions.length}件抽出し、ネタの種を${analysis.demands.length}件作成しました。無料利用は今回で終了です。`);
         showUpgradeBox(true);
       }
 
@@ -711,14 +1036,10 @@ async function runAnalyze() {
 
     if (usageResult.mode === "paid") {
       if (usageResult.remaining > 0) {
-        setStatus(
-          `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。有料プランは残り${usageResult.remaining}回です。`
-        );
+        setStatus(`分析完了：${comments.length}件中、質問を${analysis.questions.length}件抽出し、ネタの種を${analysis.demands.length}件作成しました。有料プランは残り${usageResult.remaining}回です。`);
         showUpgradeBox(false);
       } else {
-        setStatus(
-          `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。有料プラン30回分を使い切りました。`
-        );
+        setStatus(`分析完了：${comments.length}件中、質問を${analysis.questions.length}件抽出し、ネタの種を${analysis.demands.length}件作成しました。有料プラン30回分を使い切りました。`);
         showUpgradeBox(true);
       }
 
@@ -729,29 +1050,42 @@ async function runAnalyze() {
     setStatus(`エラー：${error.message}`);
     alert(error.message);
   } finally {
-    els.analyzeBtn.disabled = false;
+    if (els.analyzeBtn) els.analyzeBtn.disabled = false;
   }
 }
 
 function clearAll() {
-  latestRows = [];
+  latestAnalysis = {
+    videoId: "",
+    totalComments: 0,
+    questions: [],
+    demands: [],
+    ideas: []
+  };
 
-  els.videoUrl.value = "";
+  if (els.videoUrl) els.videoUrl.value = "";
+  if (els.questionSearch) els.questionSearch.value = "";
 
-  els.totalCount.textContent = "0";
-  els.questionCount.textContent = "0";
-  els.unrepliedCount.textContent = "0";
+  if (els.totalCount) els.totalCount.textContent = "0";
+  if (els.questionCount) els.questionCount.textContent = "0";
+  if (els.demandCount) els.demandCount.textContent = "0";
+  if (els.downloadBtn) els.downloadBtn.disabled = true;
 
-  els.downloadBtn.disabled = true;
-  els.categorySummary.innerHTML = "";
+  if (els.demandRanking) {
+    els.demandRanking.innerHTML = `<p class="emptyBox">まだランキングはありません。動画URLを入力して「ネタを探す」を押してください。</p>`;
+  }
 
-  els.resultBody.innerHTML = `
-    <tr>
-      <td colspan="7" class="empty">
-        まだ分析結果はありません。
-      </td>
-    </tr>
-  `;
+  if (els.representativeQuestions) {
+    els.representativeQuestions.innerHTML = `<p class="emptyBox">まだ質問はありません。</p>`;
+  }
+
+  if (els.contentIdeas) {
+    els.contentIdeas.innerHTML = `<p class="emptyBox">まだ記事・動画ネタ候補はありません。</p>`;
+  }
+
+  if (els.resultBody) {
+    els.resultBody.innerHTML = `<tr><td colspan="6" class="empty">まだ分析結果はありません。</td></tr>`;
+  }
 
   setInitialStatus();
 }
@@ -774,6 +1108,12 @@ if (els.downloadBtn) {
 
 if (els.clearBtn) {
   els.clearBtn.addEventListener("click", clearAll);
+}
+
+if (els.questionSearch) {
+  els.questionSearch.addEventListener("input", () => {
+    renderQuestionTable(latestAnalysis.questions);
+  });
 }
 
 initAuth();

@@ -828,7 +828,7 @@ function renderDemandRanking(demands) {
         <span class="demandRank">${index + 1}</span>
         <div>
           <div class="demandName">${escapeHtml(group.demand)}</div>
-          <div class="demandMeta">代表質問：${escapeHtml(group.representativeQuestions[0] || "-")}</div>
+         
         </div>
         <div class="demandCount">${group.count}件</div>
       </div>

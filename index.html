@@ -4,16 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-<title>
-YouTubeコメントから需要・質問を分析｜動画ネタ・商品アイデア発掘ツール
-</title>
+  <title>人気YouTuberのコメントから記事・動画ネタを発見｜YouTubeネタ探しツール</title>
 
-<meta property="og:title" content="YouTubeコメントから需要を発掘" />
-<meta property="og:description" content="視聴者の悩み・質問・ニーズを抽出" />
-<meta property="og:image" content="画像URL" />
+  <meta
+    name="description"
+    content="YouTube動画URLを入れるだけ。人気YouTuberのコメント欄にある質問から、視聴者が知りたいこと・次に作るべき記事ネタ・動画ネタを見つけます。"
+  />
 
-
-
+  <meta property="og:title" content="人気YouTuberのコメントから記事・動画ネタを発見" />
+  <meta property="og:description" content="コメント欄の質問から、視聴者が本当に知りたいことを見つけるネタ探しツール。" />
+  <meta property="og:image" content="画像URL" />
 
   <link rel="stylesheet" href="style.css" />
 
@@ -21,72 +21,67 @@ YouTubeコメントから需要・質問を分析｜動画ネタ・商品アイ�
 </head>
 
 <body>
-
 <div class="app">
 
   <header class="hero">
-
     <p class="eyebrow">
-      YouTube Comment Question Miner
+      YouTubeネタ探しツール
     </p>
 
     <h1>
-  YouTube動画URLを入れるだけで、需要・質問を分析
-</h1>
+      人気YouTuberのコメントから、<br />
+      次に作る記事・動画ネタを見つける。
+    </h1>
 
-<p>
-  人気動画のコメントから、視聴者の悩み・質問・未解決ニーズを抽出。動画ネタ、商品アイデア、市場調査のヒントをExcelでダウンロードできます。
-</p>
-
-
+    <p>
+      YouTube動画URLを入れるだけ。
+      人気YouTuberのコメント欄から視聴者需要を発見し、
+      次に作る記事ネタ・動画ネタ候補まで出します。
+    </p>
   </header>
 
+  <section class="conceptSection">
+    <h2>
+      ネタ切れしたら、人気動画のコメント欄を見ればいい。
+    </h2>
 
-<section class="conceptSection">
-  <h2>視聴者の「本音」から需要を発掘。</h2>
+    <p>
+      伸びているYouTuberのコメント欄には、視聴者の「もっと知りたい」がそのまま残っています。
+    </p>
 
-  <p>
-    YouTubeコメントには、
-    検索では見えない「悩み」「質問」「欲しいもの」が集まっています。
-  </p>
+    <p>
+      このツールは、コメントの中から質問を拾い集めて、
+      視聴者が本当に知りたいこと・実際に多かった質問・記事ネタ・動画ネタ候補として整理します。
+    </p>
 
-  <p>
-    人気動画のコメントから、
-    商品アイデア・動画ネタ・ブログテーマ・相談サービスのヒントを発見できます。
-  </p>
-
-  <div class="conceptTags">
-    <span>動画ネタ探し</span>
-    <span>商品アイデア</span>
-    <span>市場調査</span>
-    <span>起業・副業</span>
-    <span>未解決ニーズ発見</span>
-  </div>
-</section>
-
-
+    <div class="conceptTags">
+      <span>ネタ切れ対策</span>
+      <span>人気動画リサーチ</span>
+      <span>記事ネタ探し</span>
+      <span>動画ネタ探し</span>
+      <span>視聴者需要を発見</span>
+    </div>
+  </section>
 
   <section class="card">
+    <div class="authBox">
+      <div id="authLoggedOut">
+        <button id="loginBtn" type="button">
+          Googleでログイン
+        </button>
+      </div>
 
+      <div id="authLoggedIn" class="isHidden">
+        <p id="userEmail" class="authEmail"></p>
 
-<div class="authBox">
-  <div id="authLoggedOut">
-    <button id="loginBtn" type="button">
-      Googleでログイン
-    </button>
-  </div>
+        <button id="logoutBtn" type="button" class="sub">
+          ログアウト
+        </button>
+      </div>
+    </div>
 
-  <div id="authLoggedIn" class="isHidden">
-    <p id="userEmail" class="authEmail"></p>
-
-    <button id="logoutBtn" type="button" class="sub">
-      ログアウト
-    </button>
-  </div>
-</div>
-
-    <label>
-      YouTube動画URL
+    <label for="videoUrl">
+      分析したいYouTube動画URL
     </label>
 
     <input
@@ -95,8 +90,8 @@ YouTubeコメントから需要・質問を分析｜動画ネタ・商品アイ�
       placeholder="https://www.youtube.com/watch?v=..."
     />
 
-    <label>
-      取得件数
+    <label for="maxComments">
+      コメント取得数
     </label>
 
     <select id="maxComments">
@@ -107,51 +102,46 @@ YouTubeコメントから需要・質問を分析｜動画ネタ・商品アイ�
     </select>
 
     <div class="actions">
-
       <button id="analyzeBtn">
-        分析する
+        ネタを探す
       </button>
 
       <button id="downloadBtn" disabled>
-        Excelダウンロード
+        結果をExcelで保存
       </button>
 
       <button id="clearBtn" class="sub">
         クリア
       </button>
-
     </div>
 
     <p id="status" class="status">
-      動画URLを入力してください。
+      Googleログインすると分析できます。
     </p>
-
   </section>
 
   <section id="upgradeBox" class="card upgradeBox isHidden">
-
     <p class="upgradeEyebrow">
       Free limit reached
     </p>
 
     <h2>
-      無料分析は3回までです
+      無料で3回まで分析できます
     </h2>
 
     <p>
-      続けてYouTubeコメントを分析するには、有料プランをご利用ください。
-      Excelダウンロード、未返信質問の抽出、分類結果の整理を引き続き使えます。
+      気になる動画を試してみてください。
+      続けてネタ探しをしたい場合は、30回分析できる買い切りプランをご利用ください。
     </p>
 
     <div class="upgradePlan">
-
       <div>
         <strong>
-          Lite Plan
+          980円 / 30回分析
         </strong>
 
         <span>
-          月額 ¥980〜予定
+          買い切り・月額なし
         </span>
       </div>
 
@@ -160,86 +150,135 @@ YouTubeコメントから需要・質問を分析｜動画ネタ・商品アイ�
         class="upgradeBtn"
         href="https://buy.stripe.com/bJebJ29YRe1AfAn4zEfEk01"
       >
-        有料プランを見る
+        30回分を購入する
       </a>
-
     </div>
-
-    <p class="upgradeNote">
-      ※ 現在は準備中です。Stripe決済を接続すると、このボタンから申込みできるようになります。
-    </p>
-
   </section>
 
   <section class="summaryGrid">
-
     <div class="summaryCard">
-      <span>取得コメント</span>
+      <span>分析したコメント</span>
       <strong id="totalCount">0</strong>
     </div>
 
     <div class="summaryCard">
-      <span>質問抽出</span>
+      <span>見つかった質問</span>
       <strong id="questionCount">0</strong>
     </div>
 
     <div class="summaryCard">
-      <span>未返信質問</span>
-      <strong id="unrepliedCount">0</strong>
+      <span>ネタの種</span>
+      <strong id="demandCount">0</strong>
     </div>
-
   </section>
 
   <section class="card">
+    <div class="sectionHeader">
+      <div>
+        <p class="sectionEyebrow">
+          Demand Ranking
+        </p>
 
-    <h2>
-      分析結果
-    </h2>
+        <h2>
+          視聴者が知りたいことランキング
+        </h2>
+      </div>
+    </div>
 
-    <div
-      id="categorySummary"
-      class="categorySummary"
-    ></div>
+    <div id="demandRanking" class="demandRanking">
+      <p class="emptyBox">
+        まだランキングはありません。動画URLを入力して「ネタを探す」を押してください。
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="sectionHeader">
+      <div>
+        <p class="sectionEyebrow">
+          Common Questions
+        </p>
+
+        <h2>
+          実際に多かった質問
+        </h2>
+      </div>
+    </div>
+
+    <div id="representativeQuestions" class="questionGroups">
+      <p class="emptyBox">
+        まだ質問はありません。
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="sectionHeader">
+      <div>
+        <p class="sectionEyebrow">
+          Content Ideas
+        </p>
+
+        <h2>
+          記事・動画ネタ候補
+        </h2>
+      </div>
+    </div>
+
+    <div id="contentIdeas" class="ideaList">
+      <p class="emptyBox">
+        まだ記事・動画ネタ候補はありません。
+      </p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="sectionHeader">
+      <div>
+        <p class="sectionEyebrow">
+          All Questions
+        </p>
+
+        <h2>
+          抽出した質問一覧
+        </h2>
+      </div>
+
+      <input
+        id="questionSearch"
+        class="questionSearch"
+        type="text"
+        placeholder="質問を検索..."
+      />
+    </div>
 
     <div class="tableWrap">
-
       <table>
-
         <thead>
           <tr>
             <th>#</th>
-            <th>分類</th>
+            <th>ネタの種</th>
             <th>重要度</th>
-            <th>返信</th>
             <th>いいね</th>
-            <th>コメント</th>
+            <th>質問コメント</th>
             <th>投稿者</th>
           </tr>
         </thead>
 
         <tbody id="resultBody">
-
           <tr>
-            <td colspan="7" class="empty">
+            <td colspan="6" class="empty">
               まだ分析結果はありません。
             </td>
           </tr>
-
         </tbody>
-
       </table>
-
     </div>
-
   </section>
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
-
 <script src="script.js"></script>
-
 </body>
 </html>

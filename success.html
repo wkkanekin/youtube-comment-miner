@@ -7,6 +7,8 @@
   <title>ご購入ありがとうございます</title>
 
   <link rel="stylesheet" href="style.css" />
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 
 <body>
@@ -28,6 +30,13 @@
       有料プランへお申し込みいただきありがとうございます。
     </p>
 
+    <p
+      id="paymentStatus"
+      class="successText"
+    >
+      有料プランの分析回数を確認しています...
+    </p>
+
     <div class="successActions">
 
       <a
@@ -47,6 +56,121 @@
   </section>
 
 </div>
+
+<script>
+const supabaseUrl = "https://grnjerofzgqjapbecmys.supabase.co";
+
+const supabaseKey = "sb_publishable_3nnBZWtQv_gfdhJWMhYiAA_z1v_HiDD";
+
+const supabaseClient = supabase.createClient(
+  supabaseUrl,
+  supabaseKey
+);
+
+const PAID_USAGE_AMOUNT = 30;
+
+const paymentStatus = document.getElementById("paymentStatus");
+
+function setPaymentStatus(message) {
+  if (paymentStatus) {
+    paymentStatus.textContent = message;
+  }
+}
+
+function getGrantKey(userId) {
+  const params = new URLSearchParams(window.location.search);
+  const sessionId = params.get("session_id");
+
+  if (sessionId) {
+    return `ytcm_paid_granted_${userId}_${sessionId}`;
+  }
+
+  return `ytcm_paid_granted_${userId}_latest`;
+}
+
+async function grantPaidUsage() {
+  const { data: sessionData, error: sessionError } = await supabaseClient.auth.getSession();
+
+  if (sessionError) {
+    console.error(sessionError);
+    setPaymentStatus("ログイン状態の確認に失敗しました。TOPへ戻って再ログインしてください。");
+    return;
+  }
+
+  const user = sessionData?.session?.user || null;
+
+  if (!user) {
+    setPaymentStatus("ログイン状態を確認できませんでした。TOPへ戻って再ログインしてください。");
+    return;
+  }
+
+  const grantKey = getGrantKey(user.id);
+
+  if (localStorage.getItem(grantKey) === "done") {
+    setPaymentStatus("有料プランの分析回数はすでに反映済みです。TOPへ戻ってご利用ください。");
+    return;
+  }
+
+  const { data: profile, error: profileError } = await supabaseClient
+    .from("profiles")
+    .select("id, email, plan, usage_count, free_usage_count, paid_usage_remaining")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileError) {
+    console.error(profileError);
+    setPaymentStatus("プロフィール情報の取得に失敗しました。時間を置いて再度お試しください。");
+    return;
+  }
+
+  if (!profile) {
+    const { error: insertError } = await supabaseClient
+      .from("profiles")
+      .insert([
+        {
+          id: user.id,
+          email: user.email,
+          plan: "paid",
+          usage_count: 0,
+          free_usage_count: 0,
+          paid_usage_remaining: PAID_USAGE_AMOUNT
+        }
+      ]);
+
+    if (insertError) {
+      console.error(insertError);
+      setPaymentStatus("有料プランの反映に失敗しました。お問い合わせください。");
+      return;
+    }
+
+    localStorage.setItem(grantKey, "done");
+    setPaymentStatus(`有料プランを反映しました。分析回数が${PAID_USAGE_AMOUNT}回追加されました。`);
+    return;
+  }
+
+  const currentPaidRemaining = Number(profile.paid_usage_remaining || 0);
+  const nextPaidRemaining = currentPaidRemaining + PAID_USAGE_AMOUNT;
+
+  const { error: updateError } = await supabaseClient
+    .from("profiles")
+    .update({
+      plan: "paid",
+      paid_usage_remaining: nextPaidRemaining
+    })
+    .eq("id", user.id);
+
+  if (updateError) {
+    console.error(updateError);
+    setPaymentStatus("有料プランの反映に失敗しました。お問い合わせください。");
+    return;
+  }
+
+  localStorage.setItem(grantKey, "done");
+  setPaymentStatus(`有料プランを反映しました。分析回数が${PAID_USAGE_AMOUNT}回追加されました。残り${nextPaidRemaining}回利用できます。`);
+}
+
+grantPaidUsage();
+</script>
 
 </body>
 </html>

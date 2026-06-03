@@ -30,16 +30,17 @@ const els = {
 
 let latestRows = [];
 let currentUser = null;
+let currentProfile = null;
 
 const FREE_USAGE_LIMIT = 3;
-
-let currentProfile = null;
+const PAID_USAGE_AMOUNT = 30;
+const DEFAULT_REDIRECT_URL = `${window.location.origin}/`;
 
 async function signInWithGoogle() {
   const { error } = await supabaseClient.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: "https://youtube-comment-miner.netlify.app/"
+      redirectTo: DEFAULT_REDIRECT_URL
     }
   });
 
@@ -52,36 +53,45 @@ async function signInWithGoogle() {
 async function signOut() {
   await supabaseClient.auth.signOut();
   currentUser = null;
+  currentProfile = null;
   renderAuth(null);
   setInitialStatus();
 }
 
-
 async function createProfile(user) {
   if (!user) return;
 
-  const { data: existingUser } = await supabaseClient
+  const { data: existingUser, error: selectError } = await supabaseClient
     .from("profiles")
     .select("id")
     .eq("id", user.id)
     .maybeSingle();
 
+  if (selectError) {
+    console.error(selectError);
+  }
+
   if (!existingUser) {
-    await supabaseClient
+    const { error } = await supabaseClient
       .from("profiles")
       .insert([
         {
           id: user.id,
           email: user.email,
           plan: "free",
-          usage_count: 0
+          usage_count: 0,
+          free_usage_count: 0,
+          paid_usage_remaining: 0
         }
       ]);
+
+    if (error) {
+      console.error(error);
+    }
   }
 
   await loadProfile(user);
 }
-
 
 function renderAuth(user) {
   currentUser = user;
@@ -128,8 +138,20 @@ async function initAuth() {
     setInitialStatus();
   });
 }
-function getUsageCount() {
+
+function getLegacyUsageCount() {
   return Number(currentProfile?.usage_count || 0);
+}
+
+function getFreeUsageCount() {
+  const freeUsageCount = Number(currentProfile?.free_usage_count || 0);
+  const legacyUsageCount = getLegacyUsageCount();
+
+  return Math.max(freeUsageCount, legacyUsageCount);
+}
+
+function getPaidUsageRemaining() {
+  return Number(currentProfile?.paid_usage_remaining || 0);
 }
 
 function getPlan() {
@@ -137,13 +159,25 @@ function getPlan() {
 }
 
 function isPaidUser() {
-  return getPlan() === "paid";
+  return getPlan() === "paid" || getPaidUsageRemaining() > 0;
+}
+
+function getFreeRemainingUsage() {
+  return Math.max(FREE_USAGE_LIMIT - getFreeUsageCount(), 0);
 }
 
 function getRemainingUsage() {
-  if (isPaidUser()) return Infinity;
+  const freeRemaining = getFreeRemainingUsage();
 
-  return Math.max(FREE_USAGE_LIMIT - getUsageCount(), 0);
+  if (freeRemaining > 0) return freeRemaining;
+
+  return Math.max(getPaidUsageRemaining(), 0);
+}
+
+function getUsageMode() {
+  if (getFreeRemainingUsage() > 0) return "free";
+  if (getPaidUsageRemaining() > 0) return "paid";
+  return "none";
 }
 
 async function loadProfile(user) {
@@ -154,7 +188,7 @@ async function loadProfile(user) {
 
   const { data, error } = await supabaseClient
     .from("profiles")
-    .select("id, email, plan, usage_count")
+    .select("id, email, plan, usage_count, free_usage_count, paid_usage_remaining")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -169,31 +203,67 @@ async function loadProfile(user) {
 }
 
 async function incrementUsageCount() {
-  if (!currentUser || !currentProfile) return 0;
-
-  if (isPaidUser()) {
-    return getUsageCount();
+  if (!currentUser || !currentProfile) {
+    throw new Error("ログイン情報を確認できませんでした。");
   }
 
-  const next = getUsageCount() + 1;
+  const freeUsageCount = getFreeUsageCount();
+  const paidUsageRemaining = getPaidUsageRemaining();
 
-  const { data, error } = await supabaseClient
-    .from("profiles")
-    .update({
-      usage_count: next
-    })
-    .eq("id", currentUser.id)
-    .select("id, email, plan, usage_count")
-    .single();
+  if (freeUsageCount < FREE_USAGE_LIMIT) {
+    const nextFreeUsageCount = freeUsageCount + 1;
+    const nextLegacyUsageCount = Math.max(getLegacyUsageCount(), nextFreeUsageCount);
 
-  if (error) {
-    console.error(error);
-    throw new Error("使用回数の更新に失敗しました。");
+    const { data, error } = await supabaseClient
+      .from("profiles")
+      .update({
+        usage_count: nextLegacyUsageCount,
+        free_usage_count: nextFreeUsageCount
+      })
+      .eq("id", currentUser.id)
+      .select("id, email, plan, usage_count, free_usage_count, paid_usage_remaining")
+      .single();
+
+    if (error) {
+      console.error(error);
+      throw new Error("無料使用回数の更新に失敗しました。");
+    }
+
+    currentProfile = data;
+
+    return {
+      mode: "free",
+      remaining: getRemainingUsage()
+    };
   }
 
-  currentProfile = data;
+  if (paidUsageRemaining > 0) {
+    const nextPaidUsageRemaining = paidUsageRemaining - 1;
 
-  return next;
+    const { data, error } = await supabaseClient
+      .from("profiles")
+      .update({
+        plan: "paid",
+        paid_usage_remaining: nextPaidUsageRemaining
+      })
+      .eq("id", currentUser.id)
+      .select("id, email, plan, usage_count, free_usage_count, paid_usage_remaining")
+      .single();
+
+    if (error) {
+      console.error(error);
+      throw new Error("有料使用回数の更新に失敗しました。");
+    }
+
+    currentProfile = data;
+
+    return {
+      mode: "paid",
+      remaining: getRemainingUsage()
+    };
+  }
+
+  throw new Error("利用可能な分析回数がありません。有料プランをご確認ください。");
 }
 
 function showUpgradeBox(show) {
@@ -202,6 +272,7 @@ function showUpgradeBox(show) {
 }
 
 function setStatus(message) {
+  if (!els.status) return;
   els.status.textContent = message;
 }
 
@@ -212,22 +283,23 @@ function setInitialStatus() {
     return;
   }
 
-  if (isPaidUser()) {
-    setStatus("有料プラン利用中です。回数制限なしで分析できます。");
+  const freeRemaining = getFreeRemainingUsage();
+  const paidRemaining = getPaidUsageRemaining();
+
+  if (freeRemaining > 0) {
+    setStatus(`動画URLを入力してください。無料分析は残り${freeRemaining}回です。`);
     showUpgradeBox(false);
     return;
   }
 
-  const remaining = getRemainingUsage();
-
-  if (remaining <= 0) {
-    setStatus("無料利用は3回までです。有料プランをご確認ください。");
-    showUpgradeBox(true);
+  if (paidRemaining > 0) {
+    setStatus(`有料プラン利用中です。残り${paidRemaining}回分析できます。`);
+    showUpgradeBox(false);
     return;
   }
 
-  setStatus(`動画URLを入力してください。無料分析は残り${remaining}回です。`);
-  showUpgradeBox(false);
+  setStatus("無料利用は3回までです。有料プランをご確認ください。");
+  showUpgradeBox(true);
 }
 
 function escapeHtml(value) {
@@ -583,9 +655,9 @@ async function runAnalyze() {
 
   await loadProfile(currentUser);
 
-  const currentUsage = getUsageCount();
+  const usageMode = getUsageMode();
 
-  if (!isPaidUser() && currentUsage >= FREE_USAGE_LIMIT) {
+  if (usageMode === "none") {
     alert("無料利用は3回までです。有料プランをご確認ください。");
     setStatus("無料利用は3回までです。有料プランをご確認ください。");
     showUpgradeBox(true);
@@ -619,29 +691,39 @@ async function runAnalyze() {
 
     els.downloadBtn.disabled = rows.length === 0;
 
-    const newUsageCount = await incrementUsageCount();
-    const remaining = getRemainingUsage();
+    const usageResult = await incrementUsageCount();
 
-    if (isPaidUser()) {
-      setStatus(
-        `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。有料プラン利用中です。`
-      );
-      showUpgradeBox(false);
+    if (usageResult.mode === "free") {
+      if (usageResult.remaining > 0) {
+        setStatus(
+          `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。無料分析は残り${usageResult.remaining}回です。`
+        );
+        showUpgradeBox(false);
+      } else {
+        setStatus(
+          `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。無料利用は今回で終了です。`
+        );
+        showUpgradeBox(true);
+      }
+
       return;
     }
 
-    if (remaining > 0) {
-      setStatus(
-        `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。無料分析は残り${remaining}回です。`
-      );
-      showUpgradeBox(false);
-    } else {
-      setStatus(
-        `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。無料利用は今回で終了です。`
-      );
-      showUpgradeBox(true);
-    }
+    if (usageResult.mode === "paid") {
+      if (usageResult.remaining > 0) {
+        setStatus(
+          `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。有料プランは残り${usageResult.remaining}回です。`
+        );
+        showUpgradeBox(false);
+      } else {
+        setStatus(
+          `分析完了：${comments.length}件中、質問らしいコメントを${rows.length}件抽出しました。有料プラン30回分を使い切りました。`
+        );
+        showUpgradeBox(true);
+      }
 
+      return;
+    }
   } catch (error) {
     console.error(error);
     setStatus(`エラー：${error.message}`);
@@ -650,6 +732,7 @@ async function runAnalyze() {
     els.analyzeBtn.disabled = false;
   }
 }
+
 function clearAll() {
   latestRows = [];
 
@@ -681,9 +764,17 @@ if (els.logoutBtn) {
   els.logoutBtn.addEventListener("click", signOut);
 }
 
-els.analyzeBtn.addEventListener("click", runAnalyze);
-els.downloadBtn.addEventListener("click", downloadExcel);
-els.clearBtn.addEventListener("click", clearAll);
+if (els.analyzeBtn) {
+  els.analyzeBtn.addEventListener("click", runAnalyze);
+}
+
+if (els.downloadBtn) {
+  els.downloadBtn.addEventListener("click", downloadExcel);
+}
+
+if (els.clearBtn) {
+  els.clearBtn.addEventListener("click", clearAll);
+}
 
 initAuth();
 setInitialStatus();

@@ -27,7 +27,6 @@ const els = {
 };
 
 const FREE_USAGE_LIMIT = 3;
-const PAID_USAGE_AMOUNT = 30;
 const MAX_COMMENT_LIMIT = 500;
 const DEFAULT_REDIRECT_URL = `${window.location.origin}/`;
 
@@ -43,58 +42,13 @@ let latestAnalysis = {
 };
 
 const QUESTION_SIGNALS = [
-  "？",
-  "?",
-  "教えて",
-  "知りたい",
-  "どう",
-  "どこ",
-  "いつ",
-  "なぜ",
-  "なんで",
-  "いくら",
-  "何円",
-  "何点",
-  "必要",
-  "できますか",
-  "できる",
-  "ですか",
-  "ますか",
-  "でしょうか",
-  "ありますか",
-  "いますか",
-  "可能",
-  "方法",
-  "やり方",
-  "おすすめ",
-  "違い",
-  "比較",
-  "意味",
-  "理由",
-  "どっち",
-  "どちら",
-  "手順",
-  "設定",
-  "わかる",
-  "わかります",
-  "わからない",
-  "困って",
-  "不安",
-  "悩み",
-  "how",
-  "what",
-  "why",
-  "when",
-  "where",
-  "which",
-  "can",
-  "do you",
-  "does",
-  "is it",
-  "are there",
-  "recommend",
-  "compare",
-  "difference"
+  "？", "?", "教えて", "知りたい", "どう", "どこ", "いつ", "なぜ", "なんで",
+  "いくら", "何円", "何点", "必要", "できますか", "できる", "ですか", "ますか",
+  "でしょうか", "ありますか", "いますか", "可能", "方法", "やり方", "おすすめ",
+  "違い", "比較", "意味", "理由", "どっち", "どちら", "手順", "設定",
+  "わからない", "困って", "不安", "悩み",
+  "how", "what", "why", "when", "where", "which", "can", "do you", "does",
+  "is it", "are there", "recommend", "compare", "difference"
 ];
 
 const DEMAND_RULES = [
@@ -106,7 +60,7 @@ const DEMAND_RULES = [
   {
     seed: "違い",
     title: "比較・違い",
-    words: ["違い", "比較", "vs", "VS", "どっち", "どちら", "おすすめ", "代替", "移行", "メリット", "compare", "difference", "better", "versus"]
+    words: ["違い", "比較", "vs", "どっち", "どちら", "おすすめ", "代替", "移行", "メリット", "compare", "difference", "better", "versus"]
   },
   {
     seed: "導入",
@@ -176,37 +130,10 @@ const DEMAND_RULES = [
 ];
 
 const KNOWN_TOPIC_WORDS = [
-  "Cursor",
-  "Claude Code",
-  "Claude",
-  "ChatGPT",
-  "Gemini",
-  "Perplexity",
-  "API",
-  "Windows",
-  "Mac",
-  "MCP",
-  "Supabase",
-  "Netlify",
-  "Stripe",
-  "YouTube",
-  "TikTok",
-  "X",
-  "Instagram",
-  "WordPress",
-  "Canva",
-  "料金",
-  "無料",
-  "有料",
-  "導入",
-  "設定",
-  "使い方",
-  "やり方",
-  "英語",
-  "学費",
-  "奨学金",
-  "面接",
-  "出願"
+  "Cursor", "Claude Code", "Claude", "ChatGPT", "Gemini", "Perplexity",
+  "API", "Windows", "Mac", "MCP", "Supabase", "Netlify", "Stripe",
+  "YouTube", "TikTok", "X", "Instagram", "WordPress", "Canva",
+  "英語", "学費", "奨学金", "面接", "出願"
 ];
 
 async function signInWithGoogle() {
@@ -325,21 +252,14 @@ function getFreeRemainingUsage() {
 function getRemainingUsage() {
   const freeRemaining = getFreeRemainingUsage();
 
-  if (freeRemaining > 0) {
-    return freeRemaining;
-  }
+  if (freeRemaining > 0) return freeRemaining;
 
   return Math.max(getPaidUsageRemaining(), 0);
 }
 
 function getUsageMode() {
-  if (getFreeRemainingUsage() > 0) {
-    return "free";
-  }
-
-  if (getPaidUsageRemaining() > 0) {
-    return "paid";
-  }
+  if (getFreeRemainingUsage() > 0) return "free";
+  if (getPaidUsageRemaining() > 0) return "paid";
 
   return "none";
 }
@@ -521,7 +441,7 @@ function extractVideoId(url) {
       return parsed.pathname.split("/").filter(Boolean)[0] || "";
     }
   } catch (_error) {
-    // URLではなく動画IDだけ入力された場合も許可する
+    // URLではなく動画IDだけ入力された場合も許可
   }
 
   return /^[a-zA-Z0-9_-]{11}$/.test(text) ? text : "";
@@ -601,23 +521,13 @@ function pickDemandTitle(text) {
     return matched.title;
   }
 
-  const clean = raw
-    .replace(/^(質問|教えてください|教えて|知りたいです|知りたい|すみません|こんにちは)[、,.。\s]*/g, "")
-    .replace(/[？?。！!]+$/g, "")
-    .trim();
-
-  if (clean.length <= 18) {
-    return clean || "その他の疑問";
-  }
-
-  return `${clean.slice(0, 18)}…`;
+  return "その他の疑問";
 }
 
 function scoreImportance(comment, groupCount = 1) {
   const text = normalizeText(comment.text).toLowerCase();
 
   let score = 0;
-
   const likes = Number(comment.likeCount || 0);
 
   if (likes >= 10) score += 3;
@@ -734,6 +644,7 @@ function makeContentIdeas(demands) {
 function makeIdeaTitle(demand) {
   const d = String(demand || "");
 
+  if (d.includes("その他")) return "視聴者の細かい疑問まとめ";
   if (d.includes("料金")) return `${d}完全ガイド`;
   if (d.includes("違い") || d.includes("比較")) return `${d}を完全比較`;
   if (d.includes("導入")) return `${d}ガイド`;
@@ -828,7 +739,6 @@ function renderDemandRanking(demands) {
         <span class="demandRank">${index + 1}</span>
         <div>
           <div class="demandName">${escapeHtml(group.demand)}</div>
-         
         </div>
         <div class="demandCount">${group.count}件</div>
       </div>

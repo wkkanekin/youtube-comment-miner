@@ -13,7 +13,6 @@ const els = {
   questionCount: document.getElementById("questionCount"),
   demandCount: document.getElementById("demandCount"),
   demandRanking: document.getElementById("demandRanking"),
-  resultsSection: document.getElementById("resultsSection"),
   representativeQuestions: document.getElementById("representativeQuestions"),
   contentIdeas: document.getElementById("contentIdeas"),
   questionSearch: document.getElementById("questionSearch"),
@@ -357,12 +356,6 @@ function showUpgradeBox(show) {
   }
 }
 
-function showResultsSection(show) {
-  if (els.resultsSection) {
-    els.resultsSection.classList.toggle("isHidden", !show);
-  }
-}
-
 function setStatus(message) {
   if (els.status) {
     els.status.textContent = message;
@@ -627,12 +620,6 @@ function buildDemandGroups(questionRows) {
         .map((row) => row.question)
     }))
     .sort((a, b) => {
-      const aOther = a.demand === "その他の疑問";
-      const bOther = b.demand === "その他の疑問";
-
-      if (aOther && !bOther) return 1;
-      if (!aOther && bOther) return -1;
-
       return (b.count - a.count) ||
         (b.totalLikes - a.totalLikes) ||
         a.demand.localeCompare(b.demand, "ja");
@@ -727,8 +714,6 @@ function analyzeComments(comments) {
 
 function renderResults(analysis, totalComments) {
   const { questions, demands, ideas } = analysis;
-
-  showResultsSection(true);
 
   if (els.totalCount) els.totalCount.textContent = String(totalComments);
   if (els.questionCount) els.questionCount.textContent = String(questions.length);
@@ -921,8 +906,6 @@ async function runAnalyze() {
     ideas: []
   };
 
-  showResultsSection(false);
-
   if (els.downloadBtn) els.downloadBtn.disabled = true;
   if (els.analyzeBtn) els.analyzeBtn.disabled = true;
 
@@ -1014,8 +997,6 @@ function clearAll() {
     els.resultBody.innerHTML = `<tr><td colspan="6" class="empty">まだ分析結果はありません。</td></tr>`;
   }
 
-  showResultsSection(false);
-
   setInitialStatus();
 }
 
@@ -1046,5 +1027,4 @@ if (els.questionSearch) {
 }
 
 initAuth();
-showResultsSection(false);
 setInitialStatus();
